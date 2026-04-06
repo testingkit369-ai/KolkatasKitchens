@@ -6,22 +6,16 @@ service cloud.firestore {
     // ===============================================================
     //
     // Collection: users
-    // Fields: uid, email, displayName, photoURL, role, outlet_id, lastOrderAt, createdAt
-    //
-    // Collection: users/{userId}/personal_data
-    // Fields: phone, address, updatedAt (Encrypted at rest)
+    // Fields: uid (string), email (string), displayName (string), role (string), outlet_id (string, optional), lastOrderAt (timestamp, optional), createdAt (timestamp/string)
     //
     // Collection: outlets
-    // Fields: id, name, description, image, rating, deliveryTime, cuisine, ownerId, location
+    // Fields: id (string), name (string), description (string), image (string), rating (number), deliveryTime (string), cuisine (list), ownerId (string), location (string)
     //
     // Collection: outlets/{outletId}/menu
-    // Fields: id, outlet_id, name, description, price, image, isVeg, category
+    // Fields: name (string), description (string), price (number), image (string), isVeg (bool), category (string)
     //
     // Collection: outlets/{outletId}/orders
-    // Fields: id, userId, outlet_id, items, totalAmount, status, paymentStatus, riderId, createdAt
-    //
-    // Collection: audit_logs
-    // Fields: userId, action, timestamp, oldValue, newValue, path
+    // Fields: userId (string), outlet_id (string), items (list), totalAmount (number), status (string), paymentStatus (string), riderId (string, optional), createdAt (timestamp)
     //
     // ===============================================================
 
@@ -30,12 +24,21 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
     function hasRole(role) {
-      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
     }
 
     function isSuperAdmin() {
-      return hasRole('super_admin') || request.auth.token.email == "testingkit369@gmail.com";
+      return isAuthenticated() && (
+        (request.auth.token.email == "testingkit369@gmail.com" && request.auth.token.email_verified == true) ||
+        hasRole('super_admin')
+      );
     }
 
     function isAdmin() {
@@ -43,89 +46,87 @@ service cloud.firestore {
     }
 
     function isOutletManager(outletId) {
-      return hasRole('outlet_manager') && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.outlet_id == outletId;
+      return hasRole('outlet_manager') && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.outlet_id == outletId;
     }
 
     function isRider() {
       return hasRole('rider');
     }
 
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+    // Validation Functions
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.uid is string &&
+             data.email is string &&
+             data.role in ['customer', 'outlet_manager', 'rider', 'admin', 'super_admin'] &&
+             (data.displayName == null || data.displayName is string) &&
+             (data.outlet_id == null || data.outlet_id is string);
     }
 
-    function isRateLimited() {
-      // Basic rate limiting: max 1 order per 12 seconds (5 per minute)
-      // Requires checking the user's lastOrderAt timestamp
-      let lastOrder = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lastOrderAt;
-      return lastOrder != null && request.time < duration.value(12, 's') + timestamp.date(lastOrder);
+    function isValidOutlet(data) {
+      return data.keys().hasAll(['name', 'ownerId', 'location']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.ownerId is string &&
+             data.location is string && data.location.size() > 0 && data.location.size() < 500;
+    }
+
+    function isValidMenuItem(data) {
+      return data.keys().hasAll(['name', 'price', 'category']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.price is number && data.price >= 0 &&
+             data.category is string;
     }
 
     // Rules
-    match /riders/{riderId}/live_location/{docId} {
-      // Only the rider can update their own live location
-      allow write: if isOwner(riderId) && isRider();
-      // Customers can read if they have an active order assigned to this rider
-      allow read: if isAuthenticated();
-    }
-
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId) || isAdmin();
+      allow create: if (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data);
+      allow update: if (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data);
 
       match /personal_data/{docId} {
-        // PII fields encrypted via Cloud KMS + Firebase Extensions
         allow read, write: if isOwner(userId) || isSuperAdmin();
       }
     }
 
-    match /{path=**}/orders/{orderId} {
-      allow read: if isAuthenticated() && (
-        request.auth.uid == resource.data.userId ||
-        isAdmin() ||
-        isOutletManager(resource.data.outlet_id) ||
-        isRider()
-      );
-    }
-
     match /outlets/{outletId} {
       allow read: if true;
-      allow write: if isAdmin() || isOutletManager(outletId);
+      allow write: if (isAdmin() || isOutletManager(outletId)) && isValidOutlet(request.resource.data);
       
       match /menu/{itemId} {
         allow read: if true;
-        allow write: if isAdmin() || isOutletManager(outletId);
+        allow write: if (isAdmin() || isOutletManager(outletId)) && isValidMenuItem(request.resource.data);
       }
 
       match /orders/{orderId} {
-        // Scoped access: Outlet managers can see all orders in their outlet
-        // Customers can see their own orders
         allow read: if isAuthenticated() && (
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.outlet_id == outletId || 
-          request.auth.uid == resource.data.userId ||
+          isOwner(resource.data.userId) ||
           isAdmin() ||
+          isOutletManager(outletId) ||
           isRider()
         );
         
-        // Rate-limited order placement
         allow create: if isAuthenticated() && 
                       request.resource.data.userId == request.auth.uid &&
                       request.resource.data.outlet_id == outletId;
 
         allow update: if isAuthenticated() && (
-          isOutletManager(outletId) || 
-          isAdmin() || 
-          (isRider() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'riderLocation', 'riderId', 'riderName', 'isBatch', 'batchId'])) ||
-          (request.auth.uid == resource.data.userId && request.resource.data.status == 'cancelled' && resource.data.status == 'pending')
+          isAdmin() ||
+          isOutletManager(outletId) ||
+          (isRider() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'riderLocation', 'riderId', 'riderName'])) ||
+          (isOwner(resource.data.userId) && request.resource.data.status == 'cancelled' && resource.data.status == 'pending')
         );
       }
     }
 
+    match /riders/{riderId}/live_location/{docId} {
+      allow write: if isOwner(riderId) && isRider();
+      allow read: if isAuthenticated();
+    }
+
     match /audit_logs/{logId} {
-      // Audit logs are append-only and restricted to admins or system triggers
       allow read: if isAdmin();
-      allow create: if isAuthenticated(); // Usually created via Cloud Function, but allowed for batch writes
+      allow create: if isAuthenticated();
       allow update, delete: if false;
     }
   }

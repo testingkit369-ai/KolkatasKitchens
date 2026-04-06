@@ -3,7 +3,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store/index';
 import { ShoppingCart, User, Search, LogOut, Percent, LifeBuoy, MapPin, ChevronDown, Navigation } from 'lucide-react';
 import { auth, signOut } from '../firebase';
-import { setUser } from '../store/auth-slice';
+import { setUser } from '../store/auth';
 import { useState, useEffect } from 'react';
 
 export default function Navbar() {

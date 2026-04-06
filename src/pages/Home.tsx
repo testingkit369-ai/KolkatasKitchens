@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
 import { collection, onSnapshot, query, db, OperationType, handleFirestoreError, auth, doc, getDoc, getDocs, where, orderBy, limit, collectionGroup } from '../firebase';
-import { setRestaurants, setLoading, Restaurant } from '../store/restaurant-slice';
+import { setRestaurants, setLoading, Restaurant } from '../store/restaurant';
 import { RootState } from '../store/index';
 import { Star, Clock, MapPin, ChevronRight, UtensilsCrossed, Plus, Minus, ShoppingBag, Percent, Sparkles, RotateCcw } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { addToCart, updateQuantity, clearCart } from '../store/cart-slice';
+import { addToCart, updateQuantity, clearCart } from '../store/cart';
 import axios from 'axios';
 
 interface Recommendation {

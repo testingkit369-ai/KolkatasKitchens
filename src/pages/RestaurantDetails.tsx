@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { doc, getDoc, collection, onSnapshot, query, db, OperationType, handleFirestoreError } from '../firebase';
-import { Restaurant } from '../store/restaurant-slice';
+import { Restaurant } from '../store/restaurant';
 import { Star, Clock, Plus, Minus, ShoppingBag, MapPin, ChevronRight, Percent, Utensils } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
-import { addToCart, updateQuantity } from '../store/cart-slice';
+import { addToCart, updateQuantity } from '../store/cart';
 import { RootState } from '../store/index';
 import { motion, AnimatePresence } from 'motion/react';
 

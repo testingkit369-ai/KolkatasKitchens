@@ -1,4 +1,4 @@
-import { db, collection, addDoc, getDocs, query, limit, doc, setDoc } from '../firebase';
+import { db, collection, addDoc, getDocs, query, limit, doc, setDoc, serverTimestamp } from '../firebase';
 
 const OUTLETS = [
   {
@@ -116,7 +116,7 @@ export async function seedDatabase() {
         displayName: 'Rider One',
         role: 'rider',
         outlet_id: 'karol-bagh-01',
-        createdAt: new Date().toISOString()
+        createdAt: serverTimestamp()
       },
       {
         uid: 'manager-01',
@@ -124,7 +124,7 @@ export async function seedDatabase() {
         displayName: 'Outlet Manager',
         role: 'outlet_manager',
         outlet_id: 'karol-bagh-01',
-        createdAt: new Date().toISOString()
+        createdAt: serverTimestamp()
       }
     ];
 

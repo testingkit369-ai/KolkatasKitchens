@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { MapPin, CreditCard, Truck, ShieldCheck, User, CheckCircle2, ChevronRight, Ticket, MessageSquare, Sparkles } from 'lucide-react';
 import axios from 'axios';
 import { addDoc, collection, db, serverTimestamp, OperationType, handleFirestoreError, updateDoc } from '../firebase';
-import { clearCart } from '../store/cart-slice';
+import { clearCart } from '../store/cart';
 
 export default function Checkout() {
   const { items, restaurantId } = useSelector((state: RootState) => state.cart);
