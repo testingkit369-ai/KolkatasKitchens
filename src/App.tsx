@@ -26,7 +26,7 @@ import RiderDashboard from './pages/RiderDashboard';
 import Profile from './pages/Profile';
 import Cancel from './pages/Cancel';
 import OffersPage from './pages/OffersPage';
-import Help from './pages/Help';
+import Help from './pages/HelpPage';
 import Admin from './pages/Admin';
 import Rider from './pages/Rider';
 import Kitchen from './pages/Kitchen';
