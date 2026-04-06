@@ -1,0 +1,162 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["customer", "outlet_manager", "rider", "admin", "super_admin"] },
+        "outlet_id": { "type": "string", "description": "Scoped outlet for managers/riders" },
+        "lastOrderAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "PersonalData": {
+      "title": "Personal Data",
+      "description": "Encrypted PII fields (phone, address) at rest using Cloud KMS",
+      "type": "object",
+      "properties": {
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "AuditLog": {
+      "title": "Audit Log",
+      "description": "Audit trail for write operations",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "action": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "oldValue": { "type": "object" },
+        "newValue": { "type": "object" },
+        "path": { "type": "string" }
+      },
+      "required": ["userId", "action", "timestamp", "path"]
+    },
+    "Outlet": {
+      "title": "Outlet",
+      "description": "A Kolkata's Kitchen outlet location in New Delhi.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "image": { "type": "string" },
+        "rating": { "type": "number" },
+        "deliveryTime": { "type": "string" },
+        "cuisine": { "type": "array", "items": { "type": "string" } },
+        "ownerId": { "type": "string" },
+        "location": { "type": "string", "description": "Physical address in Delhi" }
+      },
+      "required": ["name", "ownerId", "location"]
+    },
+    "MenuItem": {
+      "title": "Menu Item",
+      "description": "Authentic Kolkata dish available at an outlet.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "outlet_id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "image": { "type": "string" },
+        "isVeg": { "type": "boolean" },
+        "category": { "type": "string", "enum": ["Biryani Lineup", "Kolkata Chinese", "Rolls & Wraps", "Momos", "Burgers & Sandwiches", "Drinks"] }
+      },
+      "required": ["outlet_id", "name", "price", "category"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer order details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "outlet_id": { "type": "string" },
+        "items": { "type": "array" },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "preparing", "out-for-delivery", "delivered", "cancelled"] },
+        "paymentStatus": { "type": "string", "enum": ["pending", "completed", "failed"] },
+        "riderId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "outlet_id", "items", "totalAmount", "status"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Extended user preferences and patterns",
+      "type": "object",
+      "properties": {
+        "preferences": {
+          "type": "object",
+          "properties": {
+            "spice_level": { "type": "string", "enum": ["low", "medium", "high"] },
+            "dietary": { "type": "array", "items": { "type": "string" } },
+            "favorite_categories": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "order_patterns": {
+          "type": "object",
+          "properties": {
+            "most_ordered_time": { "type": "string" },
+            "avg_order_value": { "type": "number" }
+          }
+        }
+      }
+    },
+    "Recommendation": {
+      "title": "Recommendation",
+      "description": "AI-generated dish recommendations",
+      "type": "object",
+      "properties": {
+        "dish_id": { "type": "string" },
+        "score": { "type": "number" },
+        "reason": { "type": "string" },
+        "tag": { "type": "string" },
+        "batch_id": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/user_profiles/{userId}/preferences": {
+      "schema": "UserProfile",
+      "description": "Detailed user preferences for AI"
+    },
+    "/recommendations/{batch_id}": {
+      "schema": "Recommendation",
+      "description": "Batch recommendations"
+    },
+    "/users/{userId}/personal_data/main": {
+      "schema": "PersonalData",
+      "description": "Encrypted PII data"
+    },
+    "/outlets/{outletId}": {
+      "schema": "Outlet",
+      "description": "Outlet listings"
+    },
+    "/outlets/{outletId}/menu/{itemId}": {
+      "schema": "MenuItem",
+      "description": "Menu items for an outlet"
+    },
+    "/outlets/{outletId}/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Customer orders scoped to outlet"
+    },
+    "/audit_logs/{logId}": {
+      "schema": "AuditLog",
+      "description": "System audit trail"
+    }
+  }
+}

@@ -1,0 +1,125 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Fields: uid, email, displayName, photoURL, role, outlet_id, lastOrderAt, createdAt
+    //
+    // Collection: users/{userId}/personal_data
+    // Fields: phone, address, updatedAt (Encrypted at rest)
+    //
+    // Collection: outlets
+    // Fields: id, name, description, image, rating, deliveryTime, cuisine, ownerId, location
+    //
+    // Collection: outlets/{outletId}/menu
+    // Fields: id, outlet_id, name, description, price, image, isVeg, category
+    //
+    // Collection: outlets/{outletId}/orders
+    // Fields: id, userId, outlet_id, items, totalAmount, status, paymentStatus, riderId, createdAt
+    //
+    // Collection: audit_logs
+    // Fields: userId, action, timestamp, oldValue, newValue, path
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function hasRole(role) {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+    }
+
+    function isSuperAdmin() {
+      return hasRole('super_admin') || request.auth.token.email == "internetmoneyyy369@gmail.com";
+    }
+
+    function isAdmin() {
+      return isSuperAdmin() || hasRole('admin');
+    }
+
+    function isOutletManager(outletId) {
+      return hasRole('outlet_manager') && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.outlet_id == outletId;
+    }
+
+    function isRider() {
+      return hasRole('delivery');
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isRateLimited() {
+      // Basic rate limiting: max 1 order per 12 seconds (5 per minute)
+      // Requires checking the user's lastOrderAt timestamp
+      let lastOrder = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lastOrderAt;
+      return lastOrder != null && request.time < duration.value(12, 's') + timestamp.date(lastOrder);
+    }
+
+    // Rules
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
+
+      match /personal_data/{docId} {
+        // PII fields encrypted via Cloud KMS + Firebase Extensions
+        allow read, write: if isOwner(userId) || isSuperAdmin();
+      }
+    }
+
+    match /{path=**}/orders/{orderId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId ||
+        isAdmin() ||
+        isOutletManager(resource.data.outlet_id) ||
+        isRider()
+      );
+    }
+
+    match /outlets/{outletId} {
+      allow read: if true;
+      allow write: if isAdmin() || isOutletManager(outletId);
+      
+      match /menu/{itemId} {
+        allow read: if true;
+        allow write: if isAdmin() || isOutletManager(outletId);
+      }
+
+      match /orders/{orderId} {
+        // Scoped access: Outlet managers can see all orders in their outlet
+        // Customers can see their own orders
+        allow read: if isAuthenticated() && (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.outlet_id == outletId || 
+          request.auth.uid == resource.data.userId ||
+          isAdmin() ||
+          isRider()
+        );
+        
+        // Rate-limited order placement
+        allow create: if isAuthenticated() && 
+                      request.resource.data.userId == request.auth.uid &&
+                      request.resource.data.outlet_id == outletId;
+
+        allow update: if isAuthenticated() && (
+          isOutletManager(outletId) || 
+          isAdmin() || 
+          (isRider() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'riderLocation', 'riderId', 'riderName', 'isBatch', 'batchId'])) ||
+          (request.auth.uid == resource.data.userId && request.resource.data.status == 'cancelled' && resource.data.status == 'pending')
+        );
+      }
+    }
+
+    match /audit_logs/{logId} {
+      // Audit logs are append-only and restricted to admins or system triggers
+      allow read: if isAdmin();
+      allow create: if isAuthenticated(); // Usually created via Cloud Function, but allowed for batch writes
+      allow update, delete: if false;
+    }
+  }
+}

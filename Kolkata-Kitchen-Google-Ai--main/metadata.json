@@ -1,0 +1,5 @@
+{
+  "name": "Kolkata's Kitchen",
+  "description": "Authentic Kolkata Biryani and Chinese in New Delhi. Premium luxury food experience at affordable prices.",
+  "requestFramePermissions": ["geolocation"]
+}
