@@ -59,7 +59,8 @@ export default function App() {
               email: firebaseUser.email,
               displayName: firebaseUser.displayName,
               photoURL: firebaseUser.photoURL,
-              role: userData.role || 'customer'
+              role: userData.role || 'customer',
+              outlet_id: userData.outlet_id
             }));
           } else {
             // Fallback if doc doesn't exist yet

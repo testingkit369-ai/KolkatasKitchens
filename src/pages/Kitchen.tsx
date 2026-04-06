@@ -39,8 +39,16 @@ export default function Kitchen() {
   useEffect(() => {
     if (!user) return;
 
-    // In a real app, we'd query by the manager's outlet_id.
-    const q = query(collectionGroup(db, 'orders'));
+    let q;
+    if (user.role === 'admin' || user.role === 'super_admin') {
+      q = query(collectionGroup(db, 'orders'));
+    } else if (user.outlet_id) {
+      q = query(collectionGroup(db, 'orders'), where('outlet_id', '==', user.outlet_id));
+    } else {
+      console.error("User is not an admin and has no outlet_id");
+      setLoading(false);
+      return;
+    }
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedOrders: Order[] = [];
@@ -78,6 +86,8 @@ export default function Kitchen() {
 
       setOrders(enrichedOrders);
       setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'orders');
     });
 
     return () => unsubscribe();

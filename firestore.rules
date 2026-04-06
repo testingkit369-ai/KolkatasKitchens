@@ -89,6 +89,15 @@ service cloud.firestore {
       }
     }
 
+    match /{path=**}/orders/{orderId} {
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.userId) ||
+        isAdmin() ||
+        isOutletManager(resource.data.outlet_id) ||
+        isRider()
+      );
+    }
+
     match /outlets/{outletId} {
       allow read: if true;
       allow write: if (isAdmin() || isOutletManager(outletId)) && isValidOutlet(request.resource.data);
