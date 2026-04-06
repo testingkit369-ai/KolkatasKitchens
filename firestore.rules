@@ -105,43 +105,41 @@ service cloud.firestore {
       }
     }
 
+    // Collection Group rule for orders to support global queries
+    match /{path=**}/orders/{orderId} {
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.userId) ||
+        isAdmin() ||
+        isOutletManager(resource.data.outlet_id) ||
+        isRider()
+      );
+      
+      allow create: if isAuthenticated() && 
+                    request.resource.data.userId == request.auth.uid &&
+                    request.resource.data.outlet_id != null;
+
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        isOutletManager(resource.data.outlet_id) ||
+        (isRider() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'riderLocation', 'riderId', 'riderName'])) ||
+        (isOwner(resource.data.userId) && request.resource.data.status == 'cancelled' && resource.data.status == 'pending')
+      );
+    }
+
     match /outlets/{outletId} {
-      // FIX: Browsing outlets is public
       allow read: if true;
       allow write: if (isAdmin() || isOutletManager(outletId)) && isValidOutlet(request.resource.data);
       
       match /menu/{itemId} {
-        // FIX: Browsing menu is public
         allow read: if true;
         allow write: if (isAdmin() || isOutletManager(outletId)) && isValidMenuItem(request.resource.data);
       }
-
-      match /orders/{orderId} {
-        allow read: if isAuthenticated() && (
-          isOwner(resource.data.userId) ||
-          isAdmin() ||
-          isOutletManager(outletId) ||
-          isRider()
-        );
-        
-        allow create: if isAuthenticated() && 
-                      request.resource.data.userId == request.auth.uid &&
-                      request.resource.data.outlet_id == outletId;
-
-        allow update: if isAuthenticated() && (
-          isAdmin() ||
-          isOutletManager(outletId) ||
-          (isRider() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'riderLocation', 'riderId', 'riderName'])) ||
-          (isOwner(resource.data.userId) && request.resource.data.status == 'cancelled' && resource.data.status == 'pending')
-        );
-      }
+      
+      // Note: orders are handled by the collection group rule above
     }
 
     match /riders/{riderId}/live_location/{docId} {
       allow write: if isOwner(riderId) && isRider();
-      // FIX: Restrict location read access to the rider themselves, admins, or order placers
-      // Note: Order placer check is simplified for now to any authenticated user for testing,
-      // but in production should be linked to an active order.
       allow read: if isAuthenticated() && (isOwner(riderId) || isAdmin() || hasRole('customer'));
     }
 
