@@ -25,7 +25,7 @@ import PaymentMock from './pages/PaymentMock';
 import RiderDashboard from './pages/RiderDashboard';
 import Profile from './pages/Profile';
 import Cancel from './pages/Cancel';
-import Offers from './pages/Offers';
+import OffersPage from './pages/OffersPage';
 import Help from './pages/Help';
 import Admin from './pages/Admin';
 import Rider from './pages/Rider';
@@ -116,7 +116,7 @@ export default function App() {
                 <Route path="/rider-dashboard/:id" element={<RiderDashboard />} />
                 <Route path="/profile" element={user ? <Profile /> : <Navigate to="/login" />} />
                 <Route path="/cancellation" element={<Cancel />} />
-                <Route path="/offers" element={<Offers />} />
+                <Route path="/offers" element={<OffersPage />} />
                 <Route path="/help" element={<Help />} />
                 <Route path="/admin" element={user?.email === 'testingkit369@gmail.com' ? <Admin /> : <Navigate to="/" />} />
                 <Route path="/kitchen" element={user?.role === 'outlet_manager' || user?.role === 'admin' || user?.email === 'testingkit369@gmail.com' ? <Kitchen /> : <Navigate to="/" />} />
