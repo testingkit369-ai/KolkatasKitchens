@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSelector } from 'react-redux';
-import { RootState } from '../store/index.ts';
+import { RootState } from '../store/index';
 import { 
   LayoutDashboard, 
   Utensils, 

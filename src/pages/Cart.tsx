@@ -1,6 +1,6 @@
 import { useSelector, useDispatch } from 'react-redux';
-import { RootState } from '../store/index.ts';
-import { updateQuantity, removeFromCart, clearCart } from '../store/cart.ts';
+import { RootState } from '../store/index';
+import { updateQuantity, removeFromCart, clearCart } from '../store/cart';
 import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, User, CheckCircle2, MapPin, CreditCard } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
