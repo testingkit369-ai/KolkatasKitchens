@@ -26,7 +26,7 @@ import RiderDashboard from './pages/RiderDashboard';
 import Profile from './pages/Profile';
 import Cancel from './pages/Cancel';
 import OffersPage from './pages/OffersPage';
-import Help from './pages/HelpPage';
+import Support from './pages/Support';
 import Admin from './pages/Admin';
 import Rider from './pages/Rider';
 import Kitchen from './pages/Kitchen';
@@ -117,7 +117,7 @@ export default function App() {
                 <Route path="/profile" element={user ? <Profile /> : <Navigate to="/login" />} />
                 <Route path="/cancellation" element={<Cancel />} />
                 <Route path="/offers" element={<OffersPage />} />
-                <Route path="/help" element={<Help />} />
+                <Route path="/help" element={<Support />} />
                 <Route path="/admin" element={user?.email === 'testingkit369@gmail.com' ? <Admin /> : <Navigate to="/" />} />
                 <Route path="/kitchen" element={user?.role === 'outlet_manager' || user?.role === 'admin' || user?.email === 'testingkit369@gmail.com' ? <Kitchen /> : <Navigate to="/" />} />
                 <Route path="/rider" element={<Rider />} />
