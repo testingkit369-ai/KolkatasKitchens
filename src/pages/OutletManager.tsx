@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSelector } from 'react-redux';
-import { RootState } from '../store/index';
+import { RootState } from '../store/index.ts';
 import { 
   ChefHat, 
   Package, 

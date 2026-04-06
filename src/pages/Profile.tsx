@@ -1,8 +1,8 @@
 import { useSelector, useDispatch } from 'react-redux';
-import { RootState } from '../store/index';
+import { RootState } from '../store/index.ts';
 import { User, ShoppingBag, MapPin, LogOut, ChevronRight, Clock, Star, Edit2, X, CheckCircle2, Smartphone, CreditCard, HelpCircle, Settings, Bike } from 'lucide-react';
 import { auth, signOut, collection, query, where, onSnapshot, db, OperationType, handleFirestoreError, updateDoc, doc, collectionGroup } from '../firebase';
-import { setUser } from '../store/auth';
+import { setUser } from '../store/auth.ts';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';

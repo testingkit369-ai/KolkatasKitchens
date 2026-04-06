@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { RootState } from '../store/index';
+import { RootState } from '../store/index.ts';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, CreditCard, Truck, ShieldCheck, User, CheckCircle2, ChevronRight, Ticket, MessageSquare, Sparkles } from 'lucide-react';
 import axios from 'axios';
 import { addDoc, collection, db, serverTimestamp, OperationType, handleFirestoreError, updateDoc } from '../firebase';
-import { clearCart } from '../store/cart';
+import { clearCart } from '../store/cart.ts';
 
 export default function Checkout() {
   const { items, restaurantId } = useSelector((state: RootState) => state.cart);

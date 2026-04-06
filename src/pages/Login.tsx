@@ -13,7 +13,7 @@ import {
   setDoc, 
   getDoc 
 } from '../firebase';
-import { setUser } from '../store/auth';
+import { setUser } from '../store/auth.ts';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { LogIn, Mail, Lock, User, ArrowRight, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';

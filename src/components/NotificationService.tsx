@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { RootState } from '../store/index';
+import { RootState } from '../store/index.ts';
 import { collectionGroup, query, where, onSnapshot, db, OperationType, handleFirestoreError } from '../firebase';
 import { Bell } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';

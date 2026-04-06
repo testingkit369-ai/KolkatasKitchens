@@ -7,8 +7,8 @@ import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { auth, onAuthStateChanged, db, doc, getDoc } from './firebase';
-import { setUser, setLoading } from './store/auth';
-import { RootState } from './store/index';
+import { setUser, setLoading } from './store/auth.ts';
+import { RootState } from './store/index.ts';
 
 // Components
 import Navbar from './components/Navbar';

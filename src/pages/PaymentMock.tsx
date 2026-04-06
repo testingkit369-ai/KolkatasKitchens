@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { ShieldCheck, CreditCard, Smartphone } from 'lucide-react';
 import { useDispatch } from 'react-redux';
-import { clearCart } from '../store/cart';
+import { clearCart } from '../store/cart.ts';
 import axios from 'axios';
 
 export default function PaymentMock() {
