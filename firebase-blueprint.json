@@ -144,6 +144,32 @@
         "tag": { "type": "string" },
         "batch_id": { "type": "string" }
       }
+    },
+    "SystemConfig": {
+      "title": "System Config",
+      "description": "Global system-wide configuration settings",
+      "type": "object",
+      "properties": {
+        "maintenanceMode": { "type": "boolean" },
+        "globalSurge": { "type": "number" },
+        "baseDeliveryFee": { "type": "number" },
+        "surgeThreshold": { "type": "number" },
+        "deliveryRadius": { "type": "number" }
+      }
+    },
+    "InventoryItem": {
+      "title": "Inventory Item",
+      "description": "Stock levels for an outlet",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "stock": { "type": "number" },
+        "unit": { "type": "string" },
+        "threshold": { "type": "number" },
+        "status": { "type": "string", "enum": ["in-stock", "low-stock", "out-of-stock"] }
+      },
+      "required": ["name", "stock", "unit"]
     }
   },
   "firestore": {
@@ -175,6 +201,10 @@
       "schema": "Order",
       "description": "Customer orders scoped to outlet"
     },
+    "/outlets/{outletId}/inventory/{itemId}": {
+      "schema": "InventoryItem",
+      "description": "Inventory stock levels"
+    },
     "/audit_logs/{logId}": {
       "schema": "AuditLog",
       "description": "System audit trail"
@@ -182,6 +212,10 @@
     "/riders/{riderId}/live_location/current": {
       "schema": "RiderLocation",
       "description": "Real-time rider location"
+    },
+    "/config/system": {
+      "schema": "SystemConfig",
+      "description": "Global system configuration"
     }
   }
 }

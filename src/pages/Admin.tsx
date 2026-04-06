@@ -37,7 +37,8 @@ import {
   Activity,
   History,
   Lock,
-  UserMinus
+  UserMinus,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -129,8 +130,10 @@ export default function Admin() {
   const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d'>('24h');
   const [outlets, setOutlets] = useState<Outlet[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [metrics, setMetrics] = useState<AnalyticsMetrics | null>(null);
+  const [systemConfig, setSystemConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -176,6 +179,18 @@ export default function Admin() {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AuditLog));
         setAuditLogs(data);
       });
+
+      // Users (Super Admin only)
+      const usersQuery = query(collection(db, 'users'), limit(100));
+      onSnapshot(usersQuery, (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setUsers(data);
+      });
+
+      // System Config
+      onSnapshot(doc(db, 'config', 'system'), (doc) => {
+        if (doc.exists()) setSystemConfig(doc.data());
+      });
     }
 
     return () => {
@@ -209,21 +224,79 @@ export default function Admin() {
     }
   };
 
-  const handleImpersonate = async (targetUserId: string) => {
+  const handleUpdateRole = async (userId: string, newRole: string) => {
     if (!isSuperAdmin) return;
     try {
-      const response = await fetch('/api/admin/impersonate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetUserId, adminId: user?.uid })
+      await updateDoc(doc(db, 'users', userId), { role: newRole });
+      // Log the action
+      await addDoc(collection(db, 'audit_logs'), {
+        timestamp: Date.now(),
+        userEmail: user?.email,
+        action: 'UPDATE_ROLE',
+        targetType: 'user',
+        targetId: userId,
+        details: `Changed role to ${newRole}`
       });
-      const result = await response.json();
-      if (result.success) {
-        alert(`Impersonation started. Token: ${result.data.impersonationToken}`);
-        // In a real app, we would store the token and reload the page
-      }
     } catch (error) {
-      console.error("Impersonation failed:", error);
+      console.error("Role update error:", error);
+    }
+  };
+
+  const handleUpdateConfig = async (key: string, value: any) => {
+    if (!isSuperAdmin) return;
+    try {
+      await updateDoc(doc(db, 'config', 'system'), { [key]: value });
+      await addDoc(collection(db, 'audit_logs'), {
+        timestamp: Date.now(),
+        userEmail: user?.email,
+        action: 'UPDATE_CONFIG',
+        targetType: 'system',
+        targetId: 'config',
+        details: `Updated ${key} to ${value}`
+      });
+    } catch (error) {
+      console.error("Config update error:", error);
+    }
+  };
+
+  const [isAddingOutlet, setIsAddingOutlet] = useState(false);
+  const [newOutlet, setNewOutlet] = useState({
+    name: '',
+    address: '',
+    cuisine: '',
+    rating: 4.5,
+    deliveryTime: '30-40 min',
+    image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&q=80&w=800',
+    isOpen: true,
+    isPromoted: false
+  });
+
+  const handleImpersonate = async (targetUserId: string) => {
+    if (!isSuperAdmin) return;
+    // Mock impersonation for now - in a real app this would involve a secure token swap
+    localStorage.setItem('impersonated_user_id', targetUserId);
+    alert(`Impersonation mode active for user ${targetUserId}. Refresh to see changes (mock).`);
+  };
+
+  const handleAddOutlet = async () => {
+    if (!isSuperAdmin) return;
+    try {
+      await addDoc(collection(db, 'outlets'), {
+        ...newOutlet,
+        createdAt: Date.now()
+      });
+      setIsAddingOutlet(false);
+      // Log action
+      await addDoc(collection(db, 'audit_logs'), {
+        timestamp: Date.now(),
+        userEmail: user?.email,
+        action: 'CREATE_OUTLET',
+        targetType: 'outlet',
+        targetId: 'new',
+        details: `Created outlet: ${newOutlet.name}`
+      });
+    } catch (error) {
+      console.error("Error adding outlet:", error);
     }
   };
 
@@ -483,8 +556,14 @@ export default function Admin() {
               >
                 <div className="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden">
                   <div className="p-10 border-b border-gray-50 flex items-center justify-between">
-                    <h3 className="text-2xl font-black text-swiggy-dark">Outlet Management</h3>
-                    <button className="bg-swiggy-orange text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-swiggy-orange/20 hover:scale-105 transition-all flex items-center space-x-3">
+                    <div>
+                      <h3 className="text-2xl font-black text-swiggy-dark">Network Nodes</h3>
+                      <p className="text-xs text-swiggy-gray font-bold uppercase tracking-widest mt-1">Manage active outlet performance & status</p>
+                    </div>
+                    <button 
+                      onClick={() => setIsAddingOutlet(true)}
+                      className="bg-swiggy-dark text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-swiggy-dark/10 hover:bg-swiggy-orange transition-all flex items-center space-x-3"
+                    >
                       <Plus className="w-4 h-4" />
                       <span>Onboard New Outlet</span>
                     </button>
@@ -493,52 +572,49 @@ export default function Admin() {
                     <table className="w-full text-left">
                       <thead>
                         <tr className="bg-gray-50/50 text-[10px] font-black text-swiggy-gray uppercase tracking-[0.2em]">
-                          <th className="px-10 py-6">Outlet Info</th>
+                          <th className="px-10 py-6">Outlet</th>
                           <th className="px-10 py-6">Status</th>
-                          <th className="px-10 py-6">Revenue (30d)</th>
-                          <th className="px-10 py-6">Active Orders</th>
+                          <th className="px-10 py-6">Performance</th>
+                          <th className="px-10 py-6">Revenue (24h)</th>
                           <th className="px-10 py-6">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
                         {outlets.map((outlet) => (
-                          <tr key={outlet.id} className="hover:bg-gray-50/50 transition-colors group">
+                          <tr key={outlet.id} className="hover:bg-gray-50/50 transition-colors">
                             <td className="px-10 py-8">
-                              <div className="flex items-center space-x-5">
-                                <div className="w-16 h-16 rounded-3xl overflow-hidden shadow-lg">
-                                  <img src={outlet.image} alt={outlet.name} className="w-full h-full object-cover" />
+                              <div className="flex items-center space-x-4">
+                                <div className="w-12 h-12 rounded-xl overflow-hidden shadow-sm">
+                                  <img src={outlet.image} alt={outlet.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                                 </div>
                                 <div>
-                                  <p className="text-base font-black text-swiggy-dark">{outlet.name}</p>
-                                  <p className="text-xs text-swiggy-gray font-bold">{outlet.location}</p>
+                                  <p className="text-sm font-black text-swiggy-dark">{outlet.name}</p>
+                                  <p className="text-[10px] text-swiggy-gray font-bold uppercase tracking-widest">{outlet.cuisines?.join(', ') || 'Cuisine'}</p>
                                 </div>
                               </div>
-                            </td>
-                            <td className="px-10 py-8">
-                              <div className="flex items-center space-x-3">
-                                <div className={cn("w-2 h-2 rounded-full", outlet.status === 'active' ? 'bg-green-500' : 'bg-red-500')} />
-                                <span className={cn("text-[10px] font-black uppercase tracking-widest", outlet.status === 'active' ? 'text-green-600' : 'text-red-600')}>
-                                  {outlet.status}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-10 py-8">
-                              <p className="text-sm font-black text-swiggy-dark">₹{(Math.random() * 1000000).toLocaleString()}</p>
-                              <p className="text-[10px] text-green-600 font-black uppercase tracking-widest mt-1">+12% vs last month</p>
                             </td>
                             <td className="px-10 py-8">
                               <div className="flex items-center space-x-2">
-                                <ShoppingBag className="w-4 h-4 text-swiggy-orange" />
-                                <span className="text-sm font-black text-swiggy-dark">{Math.floor(Math.random() * 50)}</span>
+                                <div className={cn("w-2 h-2 rounded-full", (outlet.isOpen || outlet.status === 'active') ? 'bg-green-500' : 'bg-red-500')} />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-swiggy-dark">{(outlet.isOpen || outlet.status === 'active') ? 'Active' : 'Closed'}</span>
                               </div>
+                            </td>
+                            <td className="px-10 py-8">
+                              <div className="flex items-center space-x-1 text-swiggy-orange">
+                                <Star className="w-3 h-3 fill-current" />
+                                <span className="text-xs font-black">{outlet.rating}</span>
+                              </div>
+                            </td>
+                            <td className="px-10 py-8">
+                              <p className="text-xs font-black text-swiggy-dark">₹{(Math.random() * 50000 + 10000).toFixed(0)}</p>
                             </td>
                             <td className="px-10 py-8">
                               <div className="flex items-center space-x-3">
                                 <button className="p-3 bg-gray-50 rounded-xl text-swiggy-dark hover:bg-swiggy-orange hover:text-white transition-all">
-                                  <Edit2 className="w-4 h-4" />
-                                </button>
-                                <button className="p-3 bg-gray-50 rounded-xl text-swiggy-dark hover:bg-swiggy-dark hover:text-white transition-all">
                                   <Settings className="w-4 h-4" />
+                                </button>
+                                <button className="p-3 bg-gray-50 rounded-xl text-swiggy-dark hover:bg-blue-500 hover:text-white transition-all">
+                                  <TrendingUp className="w-4 h-4" />
                                 </button>
                               </div>
                             </td>
@@ -618,6 +694,85 @@ export default function Admin() {
               </motion.div>
             )}
 
+            {activeTab === 'orders' && (
+              <motion.div
+                key="orders"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-10"
+              >
+                <div className="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="p-10 border-b border-gray-50 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-2xl font-black text-swiggy-dark">Live Logistics</h3>
+                      <p className="text-xs text-swiggy-gray font-bold uppercase tracking-widest mt-1">Global order flow across network</p>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <div className="relative">
+                        <input 
+                          type="text" 
+                          placeholder="Search Order ID..." 
+                          className="bg-gray-50 border-none rounded-2xl py-3 px-12 text-xs font-bold text-swiggy-dark focus:ring-2 focus:ring-swiggy-orange w-64"
+                        />
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-swiggy-gray w-4 h-4" />
+                      </div>
+                      <button className="p-4 bg-gray-50 rounded-2xl text-swiggy-dark hover:bg-gray-100 transition-all">
+                        <Filter className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="bg-gray-50/50 text-[10px] font-black text-swiggy-gray uppercase tracking-[0.2em]">
+                          <th className="px-10 py-6">Order ID</th>
+                          <th className="px-10 py-6">Customer</th>
+                          <th className="px-10 py-6">Status</th>
+                          <th className="px-10 py-6">Total</th>
+                          <th className="px-10 py-6">Time</th>
+                          <th className="px-10 py-6">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {orders.map((order) => (
+                          <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
+                            <td className="px-10 py-8">
+                              <p className="text-xs font-black text-swiggy-dark">#{order.id.slice(-8).toUpperCase()}</p>
+                            </td>
+                            <td className="px-10 py-8">
+                              <p className="text-xs font-bold text-swiggy-dark">{order.customerName || 'Guest'}</p>
+                            </td>
+                            <td className="px-10 py-8">
+                              <span className={cn(
+                                "px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest",
+                                order.status === 'delivered' ? 'bg-green-100 text-green-600' :
+                                order.status === 'cancelled' ? 'bg-red-100 text-red-600' :
+                                'bg-orange-100 text-orange-600'
+                              )}>
+                                {order.status}
+                              </span>
+                            </td>
+                            <td className="px-10 py-8">
+                              <p className="text-xs font-black text-swiggy-dark">₹{order.total}</p>
+                            </td>
+                            <td className="px-10 py-8">
+                              <p className="text-xs font-bold text-swiggy-gray">{new Date(order.createdAt?.toDate?.() || order.createdAt).toLocaleTimeString()}</p>
+                            </td>
+                            <td className="px-10 py-8">
+                              <button className="p-3 bg-gray-50 rounded-xl text-swiggy-dark hover:bg-swiggy-orange hover:text-white transition-all">
+                                <Eye className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
             {activeTab === 'users' && (
               <motion.div
                 key="users"
@@ -626,26 +781,74 @@ export default function Admin() {
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-10"
               >
-                {/* User Access Control Table */}
                 <div className="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden">
                   <div className="p-10 border-b border-gray-50 flex items-center justify-between">
-                    <h3 className="text-2xl font-black text-swiggy-dark">Access Governance</h3>
+                    <div>
+                      <h3 className="text-2xl font-black text-swiggy-dark">Access Governance</h3>
+                      <p className="text-xs text-swiggy-gray font-bold uppercase tracking-widest mt-1">Manage system roles & permissions</p>
+                    </div>
                     <button className="bg-swiggy-dark text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-swiggy-dark/10 hover:bg-swiggy-orange transition-all">
                       Invite System Admin
                     </button>
                   </div>
-                  <div className="p-10 text-center py-40">
-                    <Lock className="w-20 h-20 text-swiggy-orange/20 mx-auto mb-6" />
-                    <h3 className="text-2xl font-black text-swiggy-dark mb-2 uppercase tracking-widest">User Management Module</h3>
-                    <p className="text-swiggy-gray font-bold">Manage roles, permissions, and impersonate users for support.</p>
-                    <div className="mt-10 flex justify-center space-x-4">
-                      <button className="bg-gray-50 text-swiggy-dark px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-gray-100 transition-all">
-                        View All Users
-                      </button>
-                      <button className="bg-swiggy-orange text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:scale-105 transition-all">
-                        Role Assignments
-                      </button>
-                    </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="bg-gray-50/50 text-[10px] font-black text-swiggy-gray uppercase tracking-[0.2em]">
+                          <th className="px-10 py-6">User</th>
+                          <th className="px-10 py-6">Role</th>
+                          <th className="px-10 py-6">Outlet ID</th>
+                          <th className="px-10 py-6">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {users.map((u) => (
+                          <tr key={u.id} className="hover:bg-gray-50/50 transition-colors">
+                            <td className="px-10 py-8">
+                              <div className="flex items-center space-x-4">
+                                <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center font-black text-swiggy-dark">
+                                  {u.displayName?.[0] || u.email?.[0].toUpperCase()}
+                                </div>
+                                <div>
+                                  <p className="text-sm font-black text-swiggy-dark">{u.displayName || 'Unnamed User'}</p>
+                                  <p className="text-[10px] text-swiggy-gray font-bold">{u.email}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-10 py-8">
+                              <select 
+                                value={u.role || 'customer'}
+                                onChange={(e) => handleUpdateRole(u.id, e.target.value)}
+                                className="bg-gray-50 border-none rounded-xl py-2 px-4 text-[10px] font-black uppercase tracking-widest text-swiggy-dark focus:ring-2 focus:ring-swiggy-orange"
+                              >
+                                <option value="super_admin">Super Admin</option>
+                                <option value="admin">Admin</option>
+                                <option value="outlet_manager">Manager</option>
+                                <option value="rider">Rider</option>
+                                <option value="customer">Customer</option>
+                              </select>
+                            </td>
+                            <td className="px-10 py-8">
+                              <p className="text-xs font-bold text-swiggy-gray">{u.outlet_id || 'N/A'}</p>
+                            </td>
+                            <td className="px-10 py-8">
+                              <div className="flex items-center space-x-3">
+                                <button 
+                                  onClick={() => handleImpersonate(u.id)}
+                                  className="p-3 bg-gray-50 rounded-xl text-swiggy-dark hover:bg-blue-500 hover:text-white transition-all"
+                                  title="Impersonate User"
+                                >
+                                  <UserCheck className="w-4 h-4" />
+                                </button>
+                                <button className="p-3 bg-gray-50 rounded-xl text-swiggy-dark hover:bg-red-500 hover:text-white transition-all">
+                                  <UserMinus className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </motion.div>
@@ -667,28 +870,48 @@ export default function Admin() {
                     </div>
                     <div className="bg-orange-50 text-swiggy-orange px-6 py-3 rounded-2xl flex items-center space-x-3">
                       <Zap className="w-5 h-5" />
-                      <span className="text-xs font-black uppercase tracking-widest">Surge Active: 1.2x</span>
+                      <span className="text-xs font-black uppercase tracking-widest">Surge Active: {systemConfig?.globalSurge || '1.0'}x</span>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    {[
-                      { label: 'Global Surge', value: '1.2x', desc: 'Applied to all outlets', icon: Zap },
-                      { label: 'Price Overrides', value: '24', desc: 'Pending approval', icon: DollarSign },
-                      { label: 'Avg. Markup', value: '15%', desc: 'Across network', icon: TrendingUp },
-                    ].map((item, i) => (
-                      <div key={i} className="bg-gray-50 p-8 rounded-3xl border border-gray-100">
-                        <div className="bg-white w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm mb-6">
-                          <item.icon className="w-6 h-6 text-swiggy-orange" />
-                        </div>
-                        <h4 className="text-sm font-black text-swiggy-gray uppercase tracking-widest mb-1">{item.label}</h4>
-                        <p className="text-3xl font-black text-swiggy-dark mb-2">{item.value}</p>
-                        <p className="text-[10px] text-swiggy-gray font-bold uppercase tracking-widest">{item.desc}</p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+                    <div className="bg-gray-50 p-8 rounded-3xl border border-gray-100">
+                      <div className="bg-white w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm mb-6">
+                        <Zap className="w-6 h-6 text-swiggy-orange" />
                       </div>
-                    ))}
+                      <h4 className="text-sm font-black text-swiggy-gray uppercase tracking-widest mb-4">Global Surge Multiplier</h4>
+                      <div className="flex items-center space-x-4">
+                        <input 
+                          type="range" 
+                          min="1" 
+                          max="3" 
+                          step="0.1" 
+                          value={systemConfig?.globalSurge || 1}
+                          onChange={(e) => handleUpdateConfig('globalSurge', parseFloat(e.target.value))}
+                          className="flex-1 accent-swiggy-orange"
+                        />
+                        <span className="text-xl font-black text-swiggy-dark">{systemConfig?.globalSurge || '1.0'}x</span>
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 p-8 rounded-3xl border border-gray-100">
+                      <div className="bg-white w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm mb-6">
+                        <DollarSign className="w-6 h-6 text-green-600" />
+                      </div>
+                      <h4 className="text-sm font-black text-swiggy-gray uppercase tracking-widest mb-1">Price Overrides</h4>
+                      <p className="text-3xl font-black text-swiggy-dark mb-2">0</p>
+                      <p className="text-[10px] text-swiggy-gray font-bold uppercase tracking-widest">Pending approval</p>
+                    </div>
+                    <div className="bg-gray-50 p-8 rounded-3xl border border-gray-100">
+                      <div className="bg-white w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm mb-6">
+                        <TrendingUp className="w-6 h-6 text-blue-600" />
+                      </div>
+                      <h4 className="text-sm font-black text-swiggy-gray uppercase tracking-widest mb-1">Avg. Markup</h4>
+                      <p className="text-3xl font-black text-swiggy-dark mb-2">15%</p>
+                      <p className="text-[10px] text-swiggy-gray font-bold uppercase tracking-widest">Across network</p>
+                    </div>
                   </div>
 
-                  <div className="mt-12 p-10 border-2 border-dashed border-gray-100 rounded-[32px] text-center">
+                  <div className="p-10 border-2 border-dashed border-gray-100 rounded-[32px] text-center">
                     <p className="text-swiggy-gray font-bold mb-6">No pending price overrides require your approval.</p>
                     <button className="text-swiggy-orange font-black uppercase text-[10px] tracking-widest hover:underline">
                       View Pricing History
@@ -697,9 +920,171 @@ export default function Admin() {
                 </div>
               </motion.div>
             )}
+
+            {activeTab === 'settings' && (
+              <motion.div
+                key="settings"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-10"
+              >
+                <div className="bg-white rounded-[40px] shadow-sm border border-gray-100 p-10">
+                  <h3 className="text-2xl font-black text-swiggy-dark mb-10">System Configuration</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                    <div className="space-y-8">
+                      <div className="flex items-center justify-between p-6 bg-gray-50 rounded-3xl border border-gray-100">
+                        <div>
+                          <p className="text-sm font-black text-swiggy-dark">Maintenance Mode</p>
+                          <p className="text-[10px] text-swiggy-gray font-bold uppercase tracking-widest">Disable all orders globally</p>
+                        </div>
+                        <button 
+                          onClick={() => handleUpdateConfig('maintenanceMode', !systemConfig?.maintenanceMode)}
+                          className={cn(
+                            "w-12 h-6 rounded-full transition-all relative",
+                            systemConfig?.maintenanceMode ? 'bg-red-500' : 'bg-gray-300'
+                          )}
+                        >
+                          <div className={cn("w-4 h-4 bg-white rounded-full absolute top-1 transition-all", systemConfig?.maintenanceMode ? 'left-7' : 'left-1')} />
+                        </button>
+                      </div>
+
+                      <div className="p-6 bg-gray-50 rounded-3xl border border-gray-100">
+                        <p className="text-sm font-black text-swiggy-dark mb-4">Base Delivery Fee (₹)</p>
+                        <div className="flex items-center space-x-4">
+                          <input 
+                            type="number" 
+                            value={systemConfig?.baseDeliveryFee || 40}
+                            onChange={(e) => handleUpdateConfig('baseDeliveryFee', parseInt(e.target.value))}
+                            className="bg-white border-none rounded-xl py-3 px-6 text-sm font-black text-swiggy-dark focus:ring-2 focus:ring-swiggy-orange w-full"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-8">
+                      <div className="p-6 bg-gray-50 rounded-3xl border border-gray-100">
+                        <p className="text-sm font-black text-swiggy-dark mb-4">Surge Threshold (Orders/Min)</p>
+                        <div className="flex items-center space-x-4">
+                          <input 
+                            type="number" 
+                            value={systemConfig?.surgeThreshold || 10}
+                            onChange={(e) => handleUpdateConfig('surgeThreshold', parseInt(e.target.value))}
+                            className="bg-white border-none rounded-xl py-3 px-6 text-sm font-black text-swiggy-dark focus:ring-2 focus:ring-swiggy-orange w-full"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="p-6 bg-gray-50 rounded-3xl border border-gray-100">
+                        <p className="text-sm font-black text-swiggy-dark mb-4">Default Delivery Radius (km)</p>
+                        <div className="flex items-center space-x-4">
+                          <input 
+                            type="number" 
+                            value={systemConfig?.deliveryRadius || 5}
+                            onChange={(e) => handleUpdateConfig('deliveryRadius', parseInt(e.target.value))}
+                            className="bg-white border-none rounded-xl py-3 px-6 text-sm font-black text-swiggy-dark focus:ring-2 focus:ring-swiggy-orange w-full"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-12 pt-10 border-t border-gray-50">
+                    <button className="bg-swiggy-dark text-white px-10 py-5 rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-swiggy-dark/20 hover:bg-swiggy-orange transition-all">
+                      Save All Changes
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
           </AnimatePresence>
         </main>
       </div>
+
+      {/* Add Outlet Modal */}
+      <AnimatePresence>
+        {isAddingOutlet && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAddingOutlet(false)}
+              className="absolute inset-0 bg-swiggy-dark/80 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-2xl rounded-[40px] overflow-hidden shadow-2xl"
+            >
+              <div className="p-10 border-b border-gray-50 flex items-center justify-between">
+                <h3 className="text-2xl font-black text-swiggy-dark uppercase tracking-widest">Onboard New Outlet</h3>
+                <button onClick={() => setIsAddingOutlet(false)} className="p-2 hover:bg-gray-50 rounded-full transition-all">
+                  <X className="w-6 h-6 text-swiggy-gray" />
+                </button>
+              </div>
+              <div className="p-10 space-y-8 max-h-[70vh] overflow-y-auto">
+                <div className="grid grid-cols-2 gap-8">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-swiggy-gray uppercase tracking-widest">Outlet Name</label>
+                    <input 
+                      type="text" 
+                      value={newOutlet.name}
+                      onChange={(e) => setNewOutlet({...newOutlet, name: e.target.value})}
+                      className="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold text-swiggy-dark focus:ring-2 focus:ring-swiggy-orange"
+                      placeholder="e.g. Biryani By Kilo"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-swiggy-gray uppercase tracking-widest">Cuisine Type</label>
+                    <input 
+                      type="text" 
+                      value={newOutlet.cuisine}
+                      onChange={(e) => setNewOutlet({...newOutlet, cuisine: e.target.value})}
+                      className="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold text-swiggy-dark focus:ring-2 focus:ring-swiggy-orange"
+                      placeholder="e.g. North Indian, Biryani"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-swiggy-gray uppercase tracking-widest">Full Address</label>
+                  <textarea 
+                    value={newOutlet.address}
+                    onChange={(e) => setNewOutlet({...newOutlet, address: e.target.value})}
+                    className="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold text-swiggy-dark focus:ring-2 focus:ring-swiggy-orange min-h-[100px]"
+                    placeholder="Enter complete outlet address..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-swiggy-gray uppercase tracking-widest">Cover Image URL</label>
+                  <input 
+                    type="text" 
+                    value={newOutlet.image}
+                    onChange={(e) => setNewOutlet({...newOutlet, image: e.target.value})}
+                    className="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold text-swiggy-dark focus:ring-2 focus:ring-swiggy-orange"
+                  />
+                </div>
+              </div>
+              <div className="p-10 bg-gray-50 flex items-center justify-end space-x-4">
+                <button 
+                  onClick={() => setIsAddingOutlet(false)}
+                  className="px-8 py-4 text-[10px] font-black text-swiggy-gray uppercase tracking-widest hover:text-swiggy-dark transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleAddOutlet}
+                  className="bg-swiggy-orange text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-swiggy-orange/20 hover:scale-105 transition-all"
+                >
+                  Confirm Onboarding
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

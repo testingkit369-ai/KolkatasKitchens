@@ -30,6 +30,7 @@ import Support from './pages/Support';
 import Admin from './pages/Admin';
 import Rider from './pages/Rider';
 import Kitchen from './pages/Kitchen';
+import OutletManager from './pages/OutletManager';
 
 function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -120,6 +121,7 @@ export default function App() {
                 <Route path="/help" element={<Support />} />
                 <Route path="/admin" element={(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'outlet_manager' || user?.email === 'testingkit369@gmail.com') ? <Admin /> : <Navigate to="/" />} />
                 <Route path="/kitchen" element={user?.role === 'outlet_manager' || user?.role === 'admin' || user?.email === 'testingkit369@gmail.com' ? <Kitchen /> : <Navigate to="/" />} />
+                <Route path="/outlet-manager/:outletId" element={(user?.role === 'outlet_manager' || user?.role === 'admin' || user?.role === 'super_admin' || user?.email === 'testingkit369@gmail.com') ? <OutletManager /> : <Navigate to="/" />} />
                 <Route path="/rider" element={<Rider />} />
               </Routes>
             </Layout>

@@ -21,6 +21,7 @@ export interface Outlet {
   costForTwo: string;
   ownerId: string;
   status: 'active' | 'inactive' | 'pending';
+  isOpen?: boolean;
   revenue?: number;
   activeOrders?: number;
 }
@@ -41,6 +42,7 @@ export interface MenuItem {
 export interface Order {
   id: string;
   userId: string;
+  customerName?: string;
   outlet_id: string;
   items: any[];
   total: number;

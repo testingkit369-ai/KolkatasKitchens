@@ -29,34 +29,40 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    function getRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    function hasRole(role) {
-      return isAuthenticated() && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-             getRole() == role;
+    function userExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
     function isSuperAdmin() {
       return isAuthenticated() && (
-        (request.auth.token.email == "testingkit369@gmail.com" && request.auth.token.email_verified == true) ||
-        hasRole('super_admin')
+        request.auth.token.email == "testingkit369@gmail.com" ||
+        (userExists() && getUserData().role == 'super_admin')
       );
     }
 
     function isAdmin() {
-      return isSuperAdmin() || hasRole('admin');
+      return isSuperAdmin() || (isAuthenticated() && userExists() && getUserData().role == 'admin');
     }
 
     function isOutletManager(outletId) {
-      return isAdmin() || (hasRole('outlet_manager') && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.outlet_id == outletId);
+      return isAdmin() || (
+        isAuthenticated() && 
+        userExists() && 
+        getUserData().role == 'outlet_manager' &&
+        getUserData().outlet_id == outletId
+      );
     }
 
     function isRider() {
-      return hasRole('rider');
+      return isAuthenticated() && userExists() && getUserData().role == 'rider';
+    }
+
+    function isCustomer() {
+      return isAuthenticated() && userExists() && getUserData().role == 'customer';
     }
 
     // Validation Helpers
@@ -134,19 +140,39 @@ service cloud.firestore {
         allow read: if true;
         allow write: if (isAdmin() || isOutletManager(outletId)) && isValidMenuItem(request.resource.data);
       }
+
+      match /inventory/{itemId} {
+        allow read: if isAuthenticated() && (isAdmin() || isOutletManager(outletId));
+        allow write: if (isAdmin() || isOutletManager(outletId));
+      }
       
       // Note: orders are handled by the collection group rule above
     }
 
     match /riders/{riderId}/live_location/{docId} {
       allow write: if isOwner(riderId) && isRider();
-      allow read: if isAuthenticated() && (isOwner(riderId) || isAdmin() || hasRole('customer'));
+      allow read: if isAuthenticated() && (isOwner(riderId) || isAdmin() || isCustomer());
     }
 
     match /audit_logs/{logId} {
       allow read: if isAdmin();
       allow create: if isAuthenticated();
       allow update, delete: if false;
+    }
+
+    match /config/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    match /user_profiles/{userId}/{path=**} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    match /recommendations/{batchId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
   }
 }

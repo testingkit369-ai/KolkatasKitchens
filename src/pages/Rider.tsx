@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store/index';
 import { 
@@ -30,11 +30,18 @@ import {
   Hash,
   WifiOff,
   Map,
-  Glasses
+  Glasses,
+  Bell,
+  HeartPulse,
+  Activity
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, onSnapshot, query, db, OperationType, handleFirestoreError, updateDoc, doc, where, collectionGroup } from '../firebase';
 import { useNavigate } from 'react-router-dom';
+import { riderSync } from '../services/riderSync';
+import { BatchCard } from '../components/Rider/BatchCard';
+import { EarningsTracker } from '../components/Rider/EarningsTracker';
+import { cn } from '../lib/utils';
 
 interface Order {
   id: string;
@@ -74,11 +81,13 @@ export default function Rider() {
   const [waterCups, setWaterCups] = useState(0);
   const [sosActive, setSosActive] = useState(false);
   const [analyticsConsent, setAnalyticsConsent] = useState(true);
-  
-  // Offline & Navigation State
-  const [offlineMode, setOfflineMode] = useState(false);
+  const [showCheckIn, setShowCheckIn] = useState(false);
+  const lastCheckInRef = useRef(Date.now());
+
+  const [offlineMode, setOfflineMode] = useState(!navigator.onLine);
   const [mapsDownloaded, setMapsDownloaded] = useState(false);
   const [arMode, setArMode] = useState(false);
+  const [queuedActions, setQueuedActions] = useState(0);
 
   // POD State
   const [showPodModal, setShowPodModal] = useState(false);
@@ -91,11 +100,65 @@ export default function Rider() {
   const currentHour = new Date().getHours();
   const isNightMode = currentHour >= 22 || currentHour < 6;
 
+  // Shake-to-alert logic
+  const lastShakeRef = useRef({ x: 0, y: 0, z: 0, time: 0 });
+  const shakeCountRef = useRef(0);
+
+  const handleShake = useCallback((event: DeviceMotionEvent) => {
+    const { x, y, z } = event.accelerationIncludingGravity || { x: 0, y: 0, z: 0 };
+    const currentTime = Date.now();
+    const diffTime = currentTime - lastShakeRef.current.time;
+
+    if (diffTime > 100) {
+      const deltaX = Math.abs(x! - lastShakeRef.current.x);
+      const deltaY = Math.abs(y! - lastShakeRef.current.y);
+      const deltaZ = Math.abs(z! - lastShakeRef.current.z);
+
+      if ((deltaX > 15 || deltaY > 15 || deltaZ > 15) && diffTime < 1000) {
+        shakeCountRef.current++;
+        if (shakeCountRef.current >= 3) {
+          triggerSOS();
+          shakeCountRef.current = 0;
+        }
+      } else if (diffTime > 1000) {
+        shakeCountRef.current = 0;
+      }
+
+      lastShakeRef.current = { x: x!, y: y!, z: z!, time: currentTime };
+    }
+  }, []);
+
   useEffect(() => {
     if (!user) {
       navigate('/login');
       return;
     }
+
+    window.addEventListener('devicemotion', handleShake);
+    const checkInInterval = setInterval(() => {
+      if (isOnline && Date.now() - lastCheckInRef.current > 2 * 60 * 60 * 1000) {
+        setShowCheckIn(true);
+      }
+    }, 60000);
+
+    const syncInterval = setInterval(() => {
+      riderSync.getQueuedCount().then(setQueuedActions);
+      if (navigator.onLine) {
+        riderSync.processQueue();
+      }
+    }, 5000);
+
+    const handleSyncAction = (e: any) => {
+      const action = e.detail;
+      if (action.type === 'UPDATE_ORDER_STATUS') {
+        const { outletId, orderId, status } = action.payload;
+        updateDoc(doc(db, 'outlets', outletId, 'orders', orderId), { status });
+      }
+    };
+
+    window.addEventListener('rider-sync-action', handleSyncAction);
+    window.addEventListener('online', () => setOfflineMode(false));
+    window.addEventListener('offline', () => setOfflineMode(true));
 
     // Listen for available orders (preparing or ready)
     const qAvailable = query(
@@ -119,7 +182,6 @@ export default function Rider() {
       });
 
       // Mock Smart Batching Engine Logic
-      // If there are multiple orders, bundle the first two into a batch
       if (orders.length >= 2) {
         const batchOrder: Order = {
           id: `batch_${orders[0].id}_${orders[1].id}`,
@@ -135,7 +197,6 @@ export default function Rider() {
           earningsPreview: 180,
           timePreview: 28
         };
-        // Replace the first two with the batch, but also keep them as singles for the toggle
         orders.unshift(batchOrder);
       }
 
@@ -178,32 +239,50 @@ export default function Rider() {
     });
 
     return () => {
+      window.removeEventListener('devicemotion', handleShake);
+      clearInterval(checkInInterval);
+      clearInterval(syncInterval);
+      window.removeEventListener('rider-sync-action', handleSyncAction);
       unsubAvailable();
       unsubActive();
       unsubHistory();
     };
-  }, [user, navigate]);
+  }, [user, navigate, handleShake, isOnline]);
 
   const acceptOrder = async (order: Order) => {
     if (!user) return;
+    
+    const performUpdate = async (bo: any) => {
+      const updateData = {
+        riderId: user.uid,
+        riderName: user.displayName || 'Rider',
+        status: 'preparing',
+        isBatch: order.isBatch || false,
+        batchId: order.isBatch ? order.id : null
+      };
+
+      if (!navigator.onLine) {
+        await riderSync.queueAction({
+          type: 'UPDATE_ORDER_STATUS',
+          payload: { outletId: bo.outlet_id, orderId: bo.id, status: 'preparing' }
+        });
+      } else {
+        await updateDoc(doc(db, 'outlets', bo.outlet_id, 'orders', bo.id), updateData);
+      }
+    };
+
     try {
       if (order.isBatch && order.batchOrders) {
-        // Accept all orders in batch
         for (const bo of order.batchOrders) {
-          await updateDoc(doc(db, 'outlets', bo.outlet_id, 'orders', bo.id), {
-            riderId: user.uid,
-            riderName: user.displayName || 'Rider',
-            status: 'preparing',
-            isBatch: true,
-            batchId: order.id
-          });
+          await performUpdate(bo);
         }
       } else {
-        await updateDoc(doc(db, 'outlets', order.outlet_id, 'orders', order.id), {
-          riderId: user.uid,
-          riderName: user.displayName || 'Rider',
-          status: 'preparing'
-        });
+        await performUpdate(order);
+      }
+      
+      // Haptic feedback
+      if ('vibrate' in navigator) {
+        navigator.vibrate([100, 50, 100]);
       }
     } catch (error) {
       console.error("Error accepting order:", error);
@@ -226,7 +305,15 @@ export default function Rider() {
     }
 
     try {
-      await updateDoc(doc(db, 'outlets', activeOrder.outlet_id, 'orders', activeOrder.id), { status });
+      if (!navigator.onLine) {
+        await riderSync.queueAction({
+          type: 'UPDATE_ORDER_STATUS',
+          payload: { outletId: activeOrder.outlet_id, orderId: activeOrder.id, status }
+        });
+      } else {
+        await updateDoc(doc(db, 'outlets', activeOrder.outlet_id, 'orders', activeOrder.id), { status });
+      }
+      
       if (status === 'out-for-delivery') setPickupOtp('');
     } catch (error) {
       console.error("Error updating status:", error);
@@ -236,7 +323,25 @@ export default function Rider() {
   const triggerSOS = () => {
     setSosActive(true);
     console.log("[SOS] Emergency Alert Triggered! Location sent to Admin & Trusted Contacts.");
-    setTimeout(() => setSosActive(false), 3000);
+    
+    // Queue SOS if offline
+    if (!navigator.onLine) {
+      riderSync.queueAction({
+        type: 'SOS_ALERT',
+        payload: { riderId: user?.uid, location: 'Last known GPS' }
+      });
+    }
+
+    setTimeout(() => setSosActive(false), 5000);
+  };
+
+  const handleCheckIn = (safe: boolean) => {
+    if (safe) {
+      lastCheckInRef.current = Date.now();
+      setShowCheckIn(false);
+    } else {
+      triggerSOS();
+    }
   };
 
   const logWater = () => {
@@ -385,69 +490,67 @@ export default function Rider() {
                   </div>
                 ) : (
                   availableOrders.map((order) => (
-                    <div key={order.id} className={`bg-white p-6 rounded-3xl shadow-sm border ${order.isBatch ? 'border-swiggy-orange ring-1 ring-swiggy-orange' : 'border-gray-100'}`}>
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <p className="text-[10px] font-black text-swiggy-orange uppercase tracking-widest mb-1">
-                            {order.isBatch ? '🔥 Smart Batch' : 'New Request'}
-                          </p>
-                          <h3 className="text-lg font-black text-swiggy-dark">₹{order.earningsPreview} <span className="text-xs text-swiggy-gray font-bold">in {order.timePreview} min</span></h3>
-                        </div>
-                        <div className="bg-gray-50 px-3 py-1 rounded-full text-[10px] font-black text-swiggy-gray uppercase tracking-widest">
-                          {order.isBatch ? `${order.batchOrders?.length} Orders` : `${order.items.length} Items`}
-                        </div>
-                      </div>
-
-                      <div className="space-y-4 mb-6">
-                        <div className="flex items-start space-x-3">
-                          <div className="w-2 h-2 rounded-full bg-green-500 mt-1.5" />
+                    order.isBatch ? (
+                      <BatchCard 
+                        key={order.id}
+                        batchId={order.id}
+                        orders={order.batchOrders?.map(bo => ({
+                          id: bo.id,
+                          address: bo.address,
+                          earnings: 45,
+                          time: 15,
+                          distance: 1.2
+                        })) || []}
+                        onAccept={() => acceptOrder(order)}
+                        onSkip={() => skipOrder(order.id, 'User skipped')}
+                      />
+                    ) : (
+                      <div key={order.id} className={`bg-white p-6 rounded-3xl shadow-sm border border-gray-100`}>
+                        <div className="flex justify-between items-start mb-4">
                           <div>
-                            <p className="text-[10px] font-black text-swiggy-gray uppercase tracking-widest">Pickup</p>
-                            <p className="text-sm font-bold text-swiggy-dark">Kolkata's Kitchen - Karol Bagh</p>
+                            <p className="text-[10px] font-black text-swiggy-orange uppercase tracking-widest mb-1">
+                              New Request
+                            </p>
+                            <h3 className="text-lg font-black text-swiggy-dark">₹{order.earningsPreview} <span className="text-xs text-swiggy-gray font-bold">in {order.timePreview} min</span></h3>
+                          </div>
+                          <div className="bg-gray-50 px-3 py-1 rounded-full text-[10px] font-black text-swiggy-gray uppercase tracking-widest">
+                            {order.items.length} Items
                           </div>
                         </div>
-                        <div className="flex items-start space-x-3">
-                          <div className="w-2 h-2 rounded-full bg-swiggy-orange mt-1.5" />
-                          <div>
-                            <p className="text-[10px] font-black text-swiggy-gray uppercase tracking-widest">Drop</p>
-                            <p className="text-sm font-bold text-swiggy-dark truncate w-64">{order.address}</p>
+
+                        <div className="space-y-4 mb-6">
+                          <div className="flex items-start space-x-3">
+                            <div className="w-2 h-2 rounded-full bg-green-500 mt-1.5" />
+                            <div>
+                              <p className="text-[10px] font-black text-swiggy-gray uppercase tracking-widest">Pickup</p>
+                              <p className="text-sm font-bold text-swiggy-dark">Kolkata's Kitchen - Karol Bagh</p>
+                            </div>
                           </div>
+                          <div className="flex items-start space-x-3">
+                            <div className="w-2 h-2 rounded-full bg-swiggy-orange mt-1.5" />
+                            <div>
+                              <p className="text-[10px] font-black text-swiggy-gray uppercase tracking-widest">Drop</p>
+                              <p className="text-sm font-bold text-swiggy-dark truncate w-64">{order.address}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex space-x-3">
+                          <button 
+                            onClick={() => acceptOrder(order)}
+                            className="flex-1 bg-swiggy-orange text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-swiggy-orange/20 active:scale-95 transition-all"
+                          >
+                            Accept Single
+                          </button>
+                          <button 
+                            onClick={() => setShowSkipModal(order.id)}
+                            className="px-4 bg-gray-100 text-swiggy-gray rounded-2xl flex items-center justify-center hover:bg-gray-200 transition-all"
+                          >
+                            <XCircle className="w-5 h-5" />
+                          </button>
                         </div>
                       </div>
-
-                      <div className="flex space-x-3">
-                        <button 
-                          onClick={() => acceptOrder(order)}
-                          className="flex-1 bg-swiggy-orange text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-swiggy-orange/20 active:scale-95 transition-all"
-                        >
-                          {order.isBatch ? 'Accept Batch' : 'Accept Single'}
-                        </button>
-                        <button 
-                          onClick={() => setShowSkipModal(order.id)}
-                          className="px-4 bg-gray-100 text-swiggy-gray rounded-2xl flex items-center justify-center hover:bg-gray-200 transition-all"
-                        >
-                          <XCircle className="w-5 h-5" />
-                        </button>
-                      </div>
-
-                      {/* Skip Modal */}
-                      {showSkipModal === order.id && (
-                        <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
-                          <p className="text-xs font-black text-swiggy-dark uppercase tracking-widest mb-3">Reason for skipping?</p>
-                          <div className="space-y-2">
-                            {['Too far', 'Traffic is bad', 'Low earnings', 'Taking a break'].map(reason => (
-                              <button 
-                                key={reason}
-                                onClick={() => skipOrder(order.id, reason)}
-                                className="w-full text-left px-4 py-2 text-sm font-bold text-swiggy-gray hover:bg-white rounded-lg transition-all"
-                              >
-                                {reason}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    )
                   ))
                 )}
               </motion.div>
@@ -587,75 +690,14 @@ export default function Rider() {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                className="space-y-8"
               >
-                <div className={`p-8 rounded-[40px] shadow-sm border text-center ${isNightMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-                  <div className="bg-green-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <DollarSign className="w-10 h-10 text-green-600" />
-                  </div>
-                  <h3 className="text-sm font-black text-swiggy-gray uppercase tracking-widest mb-2">Total Earnings</h3>
-                  <p className={`text-4xl font-black ${isNightMode ? 'text-white' : 'text-swiggy-dark'}`}>₹{totalEarnings.toLocaleString()}</p>
-                </div>
-
-                <div className="space-y-4">
-                  <h3 className={`text-sm font-black uppercase tracking-widest ${isNightMode ? 'text-white' : 'text-swiggy-dark'}`}>Earnings Breakdown</h3>
-                  <div className={`rounded-3xl border divide-y ${isNightMode ? 'bg-gray-800 border-gray-700 divide-gray-700' : 'bg-white border-gray-100 divide-gray-50'}`}>
-                    <div className="p-6 flex justify-between items-center">
-                      <div className="flex items-center space-x-4">
-                        <div className="bg-blue-50 p-3 rounded-2xl">
-                          <Bike className="w-5 h-5 text-blue-600" />
-                        </div>
-                        <div>
-                          <p className={`text-sm font-black ${isNightMode ? 'text-white' : 'text-swiggy-dark'}`}>Delivery Pay</p>
-                          <p className="text-[10px] text-swiggy-gray font-bold uppercase tracking-widest">₹40 per order</p>
-                        </div>
-                      </div>
-                      <p className={`text-sm font-black ${isNightMode ? 'text-white' : 'text-swiggy-dark'}`}>₹{totalEarnings}</p>
-                    </div>
-                    <div className="p-6 flex justify-between items-center">
-                      <div className="flex items-center space-x-4">
-                        <div className="bg-orange-50 p-3 rounded-2xl">
-                          <TrendingUp className="w-5 h-5 text-swiggy-orange" />
-                        </div>
-                        <div>
-                          <p className={`text-sm font-black ${isNightMode ? 'text-white' : 'text-swiggy-dark'}`}>Incentives</p>
-                          <p className="text-[10px] text-swiggy-gray font-bold uppercase tracking-widest">Daily targets</p>
-                        </div>
-                      </div>
-                      <p className="text-sm font-black text-green-600">₹0</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Analytics Dashboard */}
-                <div className="space-y-4">
-                  <h3 className={`text-sm font-black uppercase tracking-widest ${isNightMode ? 'text-white' : 'text-swiggy-dark'}`}>Smart Analytics</h3>
-                  
-                  <div className={`p-5 rounded-2xl border ${isNightMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-                    <div className="flex items-start space-x-3">
-                      <BarChart3 className="w-5 h-5 text-purple-500 mt-0.5" />
-                      <div>
-                        <p className={`text-sm font-bold ${isNightMode ? 'text-white' : 'text-swiggy-dark'}`}>Heatmap Insight</p>
-                        <p className="text-xs text-swiggy-gray mt-1">You earn 30% more in Salt Lake between 1-3 PM. Head there next!</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className={`p-5 rounded-2xl border ${isNightMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-                    <div className="flex items-start space-x-3">
-                      <DollarSign className="w-5 h-5 text-green-500 mt-0.5" />
-                      <div>
-                        <p className={`text-sm font-bold ${isNightMode ? 'text-white' : 'text-swiggy-dark'}`}>Tip Optimization</p>
-                        <p className="text-xs text-swiggy-gray mt-1">Orders with polite notes get 22% higher tips. Keep smiling!</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <button className="w-full flex items-center justify-center space-x-2 bg-gray-100 text-swiggy-dark py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-gray-200 transition-all">
-                    <Download className="w-4 h-4" />
-                    <span>Export Tax CSV</span>
-                  </button>
-                </div>
+                <EarningsTracker 
+                  sessionEarnings={totalEarnings}
+                  tips={completedOrders.length * 15}
+                  bonuses={completedOrders.length >= 3 ? 50 : 0}
+                  completedOrders={completedOrders.length}
+                  isNightMode={isNightMode}
+                />
               </motion.div>
             )}
 
@@ -767,6 +809,43 @@ export default function Rider() {
               </motion.div>
             )}
           </AnimatePresence>
+        )}
+
+        {/* Safety Check-In Modal */}
+        {showCheckIn && (
+          <div className="fixed inset-0 bg-swiggy-dark/95 z-[60] flex items-center justify-center p-6">
+            <div className="bg-white rounded-[40px] p-8 w-full max-w-sm text-center">
+              <div className="bg-blue-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                <HeartPulse className="w-10 h-10 text-blue-600 animate-pulse" />
+              </div>
+              <h2 className="text-2xl font-black text-swiggy-dark mb-2">Safety Check-In</h2>
+              <p className="text-swiggy-gray font-bold text-sm mb-8">
+                You've been active for 2 hours. Are you safe and comfortable to continue?
+              </p>
+              <div className="space-y-3">
+                <button 
+                  onClick={() => handleCheckIn(true)}
+                  className="w-full bg-green-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-green-600/20"
+                >
+                  Yes, I'm Safe
+                </button>
+                <button 
+                  onClick={() => handleCheckIn(false)}
+                  className="w-full bg-red-100 text-red-600 py-4 rounded-2xl font-black uppercase tracking-widest text-xs"
+                >
+                  No, I Need Help
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Offline Queue Indicator */}
+        {queuedActions > 0 && (
+          <div className="fixed bottom-28 left-1/2 -translate-x-1/2 bg-orange-600 text-white px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center space-x-2 shadow-xl z-40">
+            <Activity className="w-3 h-3 animate-spin" />
+            <span>{queuedActions} Updates Pending Sync</span>
+          </div>
         )}
 
         {/* POD Modal */}
