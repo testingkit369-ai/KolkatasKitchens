@@ -5,7 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import { db, doc, onSnapshot, updateDoc, OperationType, handleFirestoreError } from '../../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapPin, Bike, Navigation, Share2, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
-import { getDistance, simulateRoute, calculateETA } from '../../lib/geoUtils';
+import { getDistance, simulateRoute, calculateETA } from '../../lib/geo-utils';
 import { cn } from '../../lib/utils';
 
 // Custom Kolkata-themed rider icon (Yellow Taxi style)
