@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "validate:phonepe": "tsx scripts/validate-phonepe-secrets.ts"
+    "validate:phonepe": "tsx scripts/validate-phonepe-secrets.ts",
+    "test:security": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.cjs"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
@@ -43,9 +44,12 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.0",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
+    "jest": "^30.3.0",
+    "jest-environment-node": "^30.3.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
