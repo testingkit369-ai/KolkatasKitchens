@@ -80,9 +80,18 @@ service cloud.firestore {
 
     // Rules
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow create: if (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data);
-      allow update: if (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data);
+      // FIX: Restrict read access to owner or admin (prevents PII exposure)
+      allow read: if isOwner(userId) || isAdmin();
+      
+      // FIX: Prevent privilege escalation on creation
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (
+        (isOwner(userId) && request.resource.data.role == 'customer') || isAdmin()
+      );
+      
+      // FIX: Prevent privilege escalation on update
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (
+        (isOwner(userId) && request.resource.data.role == resource.data.role) || isAdmin()
+      );
 
       match /personal_data/{docId} {
         allow read, write: if isOwner(userId) || isSuperAdmin();
@@ -99,11 +108,13 @@ service cloud.firestore {
     }
 
     match /outlets/{outletId} {
-      allow read: if true;
+      // FIX: Require authentication to read outlets
+      allow read: if isAuthenticated();
       allow write: if (isAdmin() || isOutletManager(outletId)) && isValidOutlet(request.resource.data);
       
       match /menu/{itemId} {
-        allow read: if true;
+        // FIX: Require authentication to read menu
+        allow read: if isAuthenticated();
         allow write: if (isAdmin() || isOutletManager(outletId)) && isValidMenuItem(request.resource.data);
       }
 
@@ -130,7 +141,8 @@ service cloud.firestore {
 
     match /riders/{riderId}/live_location/{docId} {
       allow write: if isOwner(riderId) && isRider();
-      allow read: if isAuthenticated();
+      // FIX: Restrict location read access to the rider themselves or admins
+      allow read: if isAuthenticated() && (isOwner(riderId) || isAdmin());
     }
 
     match /audit_logs/{logId} {

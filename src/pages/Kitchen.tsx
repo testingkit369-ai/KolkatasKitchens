@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store/index';
-import { db, collection, query, onSnapshot, doc, updateDoc, collectionGroup, where } from '../firebase';
+import { db, collection, query, onSnapshot, doc, updateDoc, collectionGroup, where, handleFirestoreError, OperationType } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 import { Clock, AlertTriangle, CheckCircle2, ChefHat, Package, LayoutDashboard, ArrowRight, Layers } from 'lucide-react';
 
