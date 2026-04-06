@@ -24,7 +24,7 @@ import OrderConfirmation from './pages/OrderConfirmation';
 import PaymentMock from './pages/PaymentMock';
 import RiderDashboard from './pages/RiderDashboard';
 import Profile from './pages/Profile';
-import CancellationPage from './pages/CancellationPage';
+import Cancel from './pages/Cancel';
 import Offers from './pages/Offers';
 import Help from './pages/Help';
 import Admin from './pages/Admin';
@@ -115,7 +115,7 @@ export default function App() {
                 <Route path="/order-confirmation/:outletId/:orderId" element={<OrderConfirmation />} />
                 <Route path="/rider-dashboard/:id" element={<RiderDashboard />} />
                 <Route path="/profile" element={user ? <Profile /> : <Navigate to="/login" />} />
-                <Route path="/cancellation" element={<CancellationPage />} />
+                <Route path="/cancellation" element={<Cancel />} />
                 <Route path="/offers" element={<Offers />} />
                 <Route path="/help" element={<Help />} />
                 <Route path="/admin" element={user?.email === 'testingkit369@gmail.com' ? <Admin /> : <Navigate to="/" />} />
