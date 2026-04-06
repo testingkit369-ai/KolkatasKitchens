@@ -118,7 +118,7 @@ export default function App() {
                 <Route path="/cancellation" element={<Cancel />} />
                 <Route path="/offers" element={<OffersPage />} />
                 <Route path="/help" element={<Support />} />
-                <Route path="/admin" element={user?.email === 'testingkit369@gmail.com' ? <Admin /> : <Navigate to="/" />} />
+                <Route path="/admin" element={(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'outlet_manager' || user?.email === 'testingkit369@gmail.com') ? <Admin /> : <Navigate to="/" />} />
                 <Route path="/kitchen" element={user?.role === 'outlet_manager' || user?.role === 'admin' || user?.email === 'testingkit369@gmail.com' ? <Kitchen /> : <Navigate to="/" />} />
                 <Route path="/rider" element={<Rider />} />
               </Routes>

@@ -10,7 +10,7 @@ import {
   sendPasswordResetEmail,
   updateProfile
 } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, collection, query, where, onSnapshot, addDoc, updateDoc, serverTimestamp, deleteDoc, getDocs, orderBy, limit, collectionGroup } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc, collection, query, where, onSnapshot, addDoc, updateDoc, serverTimestamp, deleteDoc, getDocs, orderBy, limit, collectionGroup, Timestamp } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
@@ -40,7 +40,8 @@ export {
   getDocs,
   orderBy,
   limit,
-  collectionGroup
+  collectionGroup,
+  Timestamp
 };
 
 export enum OperationType {
