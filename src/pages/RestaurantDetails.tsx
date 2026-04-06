@@ -5,7 +5,7 @@ import { Restaurant } from '../store/restaurant-slice';
 import { Star, Clock, Plus, Minus, ShoppingBag, MapPin, ChevronRight, Percent, Utensils } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
 import { addToCart, updateQuantity } from '../store/cart-slice';
-import { RootState } from '../store';
+import { RootState } from '../store/index';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface MenuItem {

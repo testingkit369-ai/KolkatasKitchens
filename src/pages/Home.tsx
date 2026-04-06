@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
 import { collection, onSnapshot, query, db, OperationType, handleFirestoreError, auth, doc, getDoc, getDocs, where, orderBy, limit, collectionGroup } from '../firebase';
 import { setRestaurants, setLoading, Restaurant } from '../store/restaurant-slice';
-import { RootState } from '../store';
+import { RootState } from '../store/index';
 import { Star, Clock, MapPin, ChevronRight, UtensilsCrossed, Plus, Minus, ShoppingBag, Percent, Sparkles, RotateCcw } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
