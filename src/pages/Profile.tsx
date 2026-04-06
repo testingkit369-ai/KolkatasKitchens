@@ -20,7 +20,7 @@ export default function Profile() {
   const { user } = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const isAdmin = user?.email === 'internetmoneyyy369@gmail.com';
+  const isAdmin = user?.email === 'testingkit369@gmail.com';
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'orders' | 'addresses' | 'payments' | 'help'>('orders');

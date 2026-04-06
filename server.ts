@@ -1,172 +1,134 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
-import crypto from "crypto";
+import dotenv from "dotenv";
+import axios from "axios";
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-const HMAC_SECRET = process.env.HMAC_SECRET || "KOLKATA_KITCHEN_SECRET_KEY";
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-  app.get("/test", (req, res) => {
-    res.send("Server is alive");
+  // GitHub OAuth Callback
+  app.get("/auth/github/callback", async (req, res) => {
+    const { code } = req.query;
+    
+    if (!code) {
+      return res.status(400).send("Code is required");
+    }
+
+    try {
+      const response = await axios.post(
+        "https://github.com/login/oauth/access_token",
+        {
+          client_id: process.env.VITE_GITHUB_CLIENT_ID,
+          client_secret: process.env.GITHUB_CLIENT_SECRET,
+          code,
+        },
+        {
+          headers: {
+            Accept: "application/json",
+          },
+        }
+      );
+
+      const data = response.data;
+      
+      // Send success message to parent window and close popup
+      res.send(`
+        <html>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({ 
+                  type: 'GITHUB_AUTH_SUCCESS', 
+                  token: '${data.access_token}' 
+                }, '*');
+                window.close();
+              } else {
+                window.location.href = '/';
+              }
+            </script>
+            <p>Authentication successful. This window should close automatically.</p>
+          </body>
+        </html>
+      `);
+    } catch (error: any) {
+      console.error("GitHub OAuth Error:", error.response?.data || error.message);
+      res.status(500).send("Failed to exchange code for token");
+    }
   });
 
-  // 5. Hyperlocal Live Availability & Dynamic ETA
-  app.get("/api/outlets/:outletId/eta", async (req, res) => {
+  // Legacy API endpoint (keep for compatibility if needed, but callback is preferred for popup)
+  app.post("/api/github/token", async (req, res) => {
+    const { code } = req.body;
+    
+    if (!code) {
+      return res.status(400).json({ error: "Code is required" });
+    }
+
     try {
-      const { outletId } = req.params;
-      
-      // Mock active orders count to avoid admin SDK permission issues
-      const activeOrdersCount = Math.floor(Math.random() * 10) + 2;
-      const MAX_PREPARING_SLOTS = 20; 
-      
-      // Calculate capacity
-      const availableSlots = Math.max(0, MAX_PREPARING_SLOTS - activeOrdersCount);
-      
-      // ETA Prediction Engine (Mocked XGBoost logic)
-      const baseTime = 20;
-      const loadFactor = activeOrdersCount * 1.5; 
-      
-      // Mock external factors
-      const isRaining = Math.random() > 0.8; 
-      const weatherPenalty = isRaining ? 8 : 0;
-      
-      const minMinutes = Math.round(baseTime + loadFactor + weatherPenalty);
-      const maxMinutes = minMinutes + 10;
-      
-      let message = "Kitchen is operating normally.";
-      if (isRaining) message = "Heavy rain near outlet → +8 min delivery";
-      else if (activeOrdersCount > 8) message = "Kitchen busy → Your order starts in 4 min";
-      
-      res.json({
-        success: true,
-        data: {
-          min_minutes: minMinutes,
-          max_minutes: maxMinutes,
-          confidence: 0.89,
-          message,
-          capacity: {
-            preparing_slots: `${availableSlots}/${MAX_PREPARING_SLOTS}`,
-            active_orders: activeOrdersCount,
-            is_raining: isRaining
+      const response = await axios.post(
+        "https://github.com/login/oauth/access_token",
+        {
+          client_id: process.env.VITE_GITHUB_CLIENT_ID,
+          client_secret: process.env.GITHUB_CLIENT_SECRET,
+          code,
+        },
+        {
+          headers: {
+            Accept: "application/json",
+          },
+        }
+      );
+
+      res.json(response.data);
+    } catch (error: any) {
+      console.error("GitHub OAuth Error:", error.response?.data || error.message);
+      res.status(500).json({ error: "Failed to exchange code for token" });
+    }
+  });
+
+  // Sync Project with GitHub Files
+  app.post("/api/project/sync", async (req, res) => {
+    const { files } = req.body;
+    console.log(`Sync request received. Files to sync: ${files?.length || 0}`);
+    
+    if (!files || !Array.isArray(files)) {
+      console.error("Sync Error: Invalid files array");
+      return res.status(400).send("Files array is required");
+    }
+
+    try {
+      for (const file of files) {
+        if (file.type === 'blob') {
+          const filePath = path.join(process.cwd(), file.path);
+          const dirPath = path.dirname(filePath);
+          
+          // Ensure directory exists
+          if (!fs.existsSync(dirPath)) {
+            fs.mkdirSync(dirPath, { recursive: true });
           }
+          
+          // Write file
+          console.log(`Writing file: ${file.path}`);
+          fs.writeFileSync(filePath, file.content);
         }
-      });
-    } catch (error) {
-      console.error("ETA calculation error:", error);
-      res.status(500).json({ success: false, error: "ETA Engine failure" });
-    }
-  });
-
-  // 1. Calculate Order Total (Server-side)
-  app.post("/api/orders/calculate-total", async (req, res) => {
-    try {
-      const { cartItems, outletId, promoCode } = req.body;
-      
-      let subtotal = 0;
-      for (const item of cartItems) {
-        subtotal += (item.price || 0) * item.quantity;
       }
-
-      const taxRate = 0.05; // 5% default
-      const deliveryFee = 40;
-      const surgeMultiplier = 1.0;
-
-      let total = (subtotal * surgeMultiplier) + (subtotal * taxRate) + deliveryFee;
-
-      let discount = 0;
-      if (promoCode === "KOLKATA50") {
-        discount = 50;
-        total -= discount;
-      }
-
-      // Generate signature for payment verification
-      const signature = crypto.createHmac("sha256", HMAC_SECRET)
-        .update(`${total}:${outletId}`)
-        .digest("hex");
-
-      res.json({
-        success: true,
-        data: {
-          subtotal,
-          tax: subtotal * taxRate,
-          deliveryFee,
-          discount,
-          total: Math.max(0, total),
-          signature
-        }
-      });
-    } catch (error) {
-      console.error("Calculate total error:", error);
-      res.status(500).json({ success: false, error: "Calculation failed" });
-    }
-  });
-
-  // 2. Validate Order Placement
-  app.post("/api/orders/validate-placement", async (req, res) => {
-    try {
-      // Mock validation to avoid admin SDK permission issues
-      res.json({ success: true, message: "Valid" });
-    } catch (error) {
-      console.error("Validation error:", error);
-      res.status(500).json({ success: false, error: "Validation failed" });
-    }
-  });
-
-  // 3. Initiate Payment
-  app.post("/api/payments/initiate", async (req, res) => {
-    try {
-      const { amount, orderId, userId, signature, outletId, idempotencyKey } = req.body;
-
-      // Verify signature
-      const expectedSignature = crypto.createHmac("sha256", HMAC_SECRET)
-        .update(`${amount}:${outletId}`)
-        .digest("hex");
-
-      if (signature !== expectedSignature) {
-        return res.status(400).json({ success: false, message: "Invalid payment signature" });
-      }
-
-      // In a real app, we would check if idempotencyKey already exists in DB to prevent duplicate charges
-      console.log(`[Payment] Initiating payment for order ${orderId} with idempotency key ${idempotencyKey}`);
-
-      // Mock payment gateway response
-      res.json({
-        success: true,
-        data: {
-          instrumentResponse: {
-            redirectInfo: {
-              url: `/order-confirmation/${outletId}/${orderId}` // Redirect directly to confirmation for demo
-            }
-          }
-        }
-      });
-    } catch (error) {
-      console.error("Payment error:", error);
-      res.status(500).json({ success: false, error: "Payment initiation failed" });
-    }
-  });
-
-  // 6. Payment Webhook (Idempotent)
-  app.post("/api/webhooks/payment", async (req, res) => {
-    try {
-      const { orderId, status, transactionId } = req.body;
-      
-      // Idempotency check: verify if transactionId is already processed
-      console.log(`[Webhook] Received payment update for ${orderId}: ${status} (Txn: ${transactionId})`);
-      
-      res.json({ success: true, message: "Webhook processed" });
-    } catch (error) {
-      console.error("Webhook error:", error);
-      res.status(500).json({ success: false, error: "Webhook failed" });
+      console.log("Sync completed successfully");
+      res.json({ success: true, message: "Project synced successfully. Restarting..." });
+    } catch (error: any) {
+      console.error("Sync Error Details:", error);
+      res.status(500).send(`Failed to sync project files: ${error.message}`);
     }
   });
 

@@ -116,12 +116,15 @@ export default function Checkout() {
       }
 
       // 2. Create order in Firestore
+      const deliveryOtp = Math.floor(1000 + Math.random() * 9000).toString();
       const orderRef = await addDoc(collection(db, 'outlets', restaurantId, 'orders'), {
         userId: user.uid,
         outlet_id: restaurantId,
         items,
         totalAmount: total,
         status: 'pending',
+        deliveryOtp,
+        customerLocation: { lat: 12.9716, lng: 77.5946 }, // Default to Bangalore center
         paymentStatus: 'pending',
         paymentMethod,
         address,

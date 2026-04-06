@@ -81,7 +81,7 @@ export default function Home() {
   const { restaurants, loading } = useSelector((state: RootState) => state.restaurant);
   const { items: cartItems } = useSelector((state: RootState) => state.cart);
   const user = useSelector((state: RootState) => state.auth.user);
-  const isAdmin = user?.email === 'internetmoneyyy369@gmail.com';
+  const isAdmin = user?.email === 'testingkit369@gmail.com';
 
   const [selectedOutlet, setSelectedOutlet] = useState<Restaurant | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -107,7 +107,7 @@ export default function Home() {
 
           const now = new Date();
           const hour = now.getHours();
-          const weather = 'Sunny'; // Mock weather
+          const weather: string = 'Sunny'; // Mock weather
 
           const FESTIVALS = [
             { name: "Durga Puja", start: "2026-10-15", end: "2026-10-20", dish: "Bhoger Khichuri" },

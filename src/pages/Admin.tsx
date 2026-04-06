@@ -26,11 +26,13 @@ import {
   Upload,
   Image as ImageIcon,
   Loader2,
-  Database
+  Database,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, onSnapshot, query, db, OperationType, handleFirestoreError, addDoc, updateDoc, deleteDoc, doc, getDocs, where, collectionGroup } from '../firebase';
 import { useNavigate } from 'react-router-dom';
+import { seedDatabase } from '../services/seedService';
 
 interface MenuItem {
   id: string;
@@ -69,7 +71,7 @@ interface Restaurant {
 export default function Admin() {
   const user = useSelector((state: RootState) => state.auth.user);
   const navigate = useNavigate();
-  const isAdmin = user?.email === 'internetmoneyyy369@gmail.com';
+  const isAdmin = user?.email === 'testingkit369@gmail.com';
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
@@ -270,45 +272,13 @@ export default function Admin() {
     setSeedStatus('seeding');
     setSeedError('');
     try {
-      const outletsData = [
-        {
-          name: "Kolkata's Kitchen",
-          location: "Karol Bagh",
-          rating: 4.8,
-          deliveryTime: "30-40 mins",
-          image: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=500&q=80",
-          cuisines: ["Bengali", "Biryani", "North Indian"],
-          costForTwo: "₹500 for two"
-        },
-        {
-          name: "Bong Connection",
-          location: "CR Park",
-          rating: 4.6,
-          deliveryTime: "25-35 mins",
-          image: "https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=500&q=80",
-          cuisines: ["Bengali", "Chinese", "Street Food"],
-          costForTwo: "₹400 for two"
-        }
-      ];
-
-      const menuData = [
-        { name: "Kolkata Mutton Biryani", description: "Authentic Kolkata style biryani with aloo and tender mutton.", price: 350, image: "https://images.unsplash.com/photo-1563379091339-03b21bc4a4f8?auto=format&fit=crop&w=500&q=80", isVeg: false, category: "Kolkata Biryani" },
-        { name: "Chicken Chaap", description: "Slow cooked chicken in a rich poppy seed and cashew gravy.", price: 220, image: "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=500&q=80", isVeg: false, category: "Kolkata Biryani" },
-        { name: "Chilli Chicken (Dry)", description: "Classic Kolkata Tangra style spicy chilli chicken.", price: 240, image: "https://images.unsplash.com/photo-1525755662778-989d0524087e?auto=format&fit=crop&w=500&q=80", isVeg: false, category: "Kolkata Chinese" },
-        { name: "Veg Hakka Noodles", description: "Wok tossed noodles with fresh vegetables.", price: 180, image: "https://images.unsplash.com/photo-1585032226651-759b368d7246?auto=format&fit=crop&w=500&q=80", isVeg: true, category: "Kolkata Chinese" },
-        { name: "Chicken Steamed Momos", description: "Juicy chicken momos served with spicy red chutney.", price: 150, image: "https://images.unsplash.com/photo-1625220194771-7ebdea0b70b9?auto=format&fit=crop&w=500&q=80", isVeg: false, category: "Momos" },
-        { name: "Double Egg Chicken Roll", description: "Flaky paratha wrapped with double egg and spicy chicken filling.", price: 120, image: "https://images.unsplash.com/photo-1628840042765-356cda07504e?auto=format&fit=crop&w=500&q=80", isVeg: false, category: "Rolls" },
-        { name: "Mishti Doi", description: "Classic Bengali sweet yogurt.", price: 80, image: "https://images.unsplash.com/photo-1589301760014-d929f39ce9b0?auto=format&fit=crop&w=500&q=80", isVeg: true, category: "Desserts" },
-        { name: "Fresh Lime Soda", description: "Refreshing sweet and salt lime soda.", price: 90, image: "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=500&q=80", isVeg: true, category: "Drinks" }
-      ];
-
-      for (const outlet of outletsData) {
-        const outletRef = await addDoc(collection(db, 'outlets'), outlet);
-        for (const item of menuData) {
-          await addDoc(collection(db, 'outlets', outletRef.id, 'menu'), item);
-        }
+      const result = await seedDatabase();
+      if (result.success) {
+        setSeedStatus('success');
+      } else {
+        setSeedError(result.message);
+        setSeedStatus('error');
       }
-      setSeedStatus('success');
       setTimeout(() => setSeedStatus('idle'), 3000);
     } catch (error: any) {
       console.error('Error seeding database:', error);

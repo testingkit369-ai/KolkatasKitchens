@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { doc, getDoc, onSnapshot, db, OperationType, handleFirestoreError } from '../firebase';
-import { CheckCircle, Package, Clock, MapPin, AlertTriangle, Info } from 'lucide-react';
+import { CheckCircle, Package, Clock, MapPin, AlertTriangle, Info, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import LiveTracking from '../components/LiveTracking';
+import LiveRiderMap from '../components/Tracking/LiveRiderMap';
 import axios from 'axios';
 
 function DynamicETA({ outletId, orderStatus }: { outletId: string, orderStatus: string }) {
@@ -149,14 +149,15 @@ export default function OrderConfirmation() {
             {/* Hyperlocal Live Availability & Dynamic ETA */}
             <DynamicETA outletId={outletId!} orderStatus={order.status} />
 
-            <LiveTracking 
-              riderLocation={order.riderLocation} 
-              status={order.status}
-              restaurantLocation={{ lat: 28.6448, lng: 77.1872 }} // Karol Bagh coords
-            />
+            <div className="h-[400px] rounded-3xl overflow-hidden border border-gray-100 shadow-inner">
+              <LiveRiderMap 
+                outletId={outletId!} 
+                orderId={orderId!} 
+              />
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 pb-8 border-b border-gray-100">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8 pb-8 border-b border-gray-100">
             <div className="flex items-start space-x-4">
               <div className="h-10 w-10 bg-gray-50 rounded-lg flex items-center justify-center flex-shrink-0">
                 <Package className="h-6 w-6 text-swiggy-orange" />
@@ -173,6 +174,15 @@ export default function OrderConfirmation() {
               <div>
                 <p className="text-[10px] text-swiggy-gray font-black uppercase tracking-widest">Estimated Arrival</p>
                 <p className="text-lg font-black text-swiggy-dark">35 - 45 mins</p>
+              </div>
+            </div>
+            <div className="flex items-start space-x-4">
+              <div className="h-10 w-10 bg-orange-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                <ShieldCheck className="h-6 w-6 text-swiggy-orange" />
+              </div>
+              <div>
+                <p className="text-[10px] text-swiggy-gray font-black uppercase tracking-widest">Delivery OTP</p>
+                <p className="text-xl font-black text-swiggy-orange tracking-widest">{order.deliveryOtp || '----'}</p>
               </div>
             </div>
           </div>

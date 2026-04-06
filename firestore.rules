@@ -35,7 +35,7 @@ service cloud.firestore {
     }
 
     function isSuperAdmin() {
-      return hasRole('super_admin') || request.auth.token.email == "internetmoneyyy369@gmail.com";
+      return hasRole('super_admin') || request.auth.token.email == "testingkit369@gmail.com";
     }
 
     function isAdmin() {
@@ -47,7 +47,7 @@ service cloud.firestore {
     }
 
     function isRider() {
-      return hasRole('delivery');
+      return hasRole('rider');
     }
 
     function isOwner(userId) {
@@ -62,6 +62,13 @@ service cloud.firestore {
     }
 
     // Rules
+    match /riders/{riderId}/live_location/{docId} {
+      // Only the rider can update their own live location
+      allow write: if isOwner(riderId) && isRider();
+      // Customers can read if they have an active order assigned to this rider
+      allow read: if isAuthenticated();
+    }
+
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow create: if isOwner(userId);

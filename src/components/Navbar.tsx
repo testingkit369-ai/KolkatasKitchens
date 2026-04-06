@@ -117,10 +117,15 @@ export default function Navbar() {
           <div className="flex items-center space-x-12">
             {user ? (
               <div className="flex items-center space-x-8">
-                {(user.role === 'outlet_manager' || user.role === 'admin' || user.email === 'internetmoneyyy369@gmail.com') && (
-                  <Link to="/kitchen" className="swiggy-nav-link">
-                    <span className="font-bold text-swiggy-orange">Kitchen</span>
-                  </Link>
+                {(user.role === 'outlet_manager' || user.role === 'admin' || user.email === 'testingkit369@gmail.com') && (
+                  <>
+                    <Link to="/kitchen" className="swiggy-nav-link">
+                      <span className="font-bold text-swiggy-orange">Kitchen</span>
+                    </Link>
+                    <Link to="/admin" className="swiggy-nav-link">
+                      <span className="font-bold text-swiggy-orange">Admin</span>
+                    </Link>
+                  </>
                 )}
                 <Link to="/profile" className="swiggy-nav-link">
                   <User className="h-5 w-5" />

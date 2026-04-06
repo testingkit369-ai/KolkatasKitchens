@@ -38,7 +38,7 @@ import { useNavigate } from 'react-router-dom';
 
 interface Order {
   id: string;
-  outlet_id: string;
+  outlet_id?: string;
   items: any[];
   total: number;
   status: string;
@@ -53,6 +53,7 @@ interface Order {
   batchOrders?: any[];
   earningsPreview?: number;
   timePreview?: number;
+  userId?: string;
 }
 
 export default function Rider() {

@@ -84,11 +84,32 @@
         "items": { "type": "array" },
         "totalAmount": { "type": "number" },
         "status": { "type": "string", "enum": ["pending", "confirmed", "preparing", "out-for-delivery", "delivered", "cancelled"] },
+        "deliveryOtp": { "type": "string", "description": "4-digit OTP for delivery confirmation" },
         "paymentStatus": { "type": "string", "enum": ["pending", "completed", "failed"] },
         "riderId": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "customerLocation": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          }
+        }
       },
       "required": ["userId", "outlet_id", "items", "totalAmount", "status"]
+    },
+    "RiderLocation": {
+      "title": "Rider Location",
+      "description": "Real-time rider location data",
+      "type": "object",
+      "properties": {
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "accuracy": { "type": "number" },
+        "speed": { "type": "number" }
+      },
+      "required": ["lat", "lng", "timestamp"]
     },
     "UserProfile": {
       "title": "User Profile",
@@ -157,6 +178,10 @@
     "/audit_logs/{logId}": {
       "schema": "AuditLog",
       "description": "System audit trail"
+    },
+    "/riders/{riderId}/live_location/current": {
+      "schema": "RiderLocation",
+      "description": "Real-time rider location"
     }
   }
 }

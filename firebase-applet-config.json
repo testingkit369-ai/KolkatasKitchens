@@ -1,10 +1,10 @@
 {
-  "projectId": "gen-lang-client-0727262618",
-  "appId": "1:260687370545:web:997a3859f22dacc9fd7810",
-  "apiKey": "AIzaSyB72WCvSoAQ45zrlCHyqL9EPGkjicPtBaU",
-  "authDomain": "gen-lang-client-0727262618.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-eb977b6a-0fb7-4229-bbc9-4dcef351046e",
-  "storageBucket": "gen-lang-client-0727262618.firebasestorage.app",
-  "messagingSenderId": "260687370545",
+  "projectId": "smartbiz-46451",
+  "appId": "1:1004669334446:web:b28c4b6265420094050e3f",
+  "apiKey": "AIzaSyAjQ9T_pVUMh2AJuTxLk6ZQD95kM0rTnAc",
+  "authDomain": "smartbiz-46451.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-da9b7100-9263-4913-bccb-06b0214e49a0",
+  "storageBucket": "smartbiz-46451.firebasestorage.app",
+  "messagingSenderId": "1004669334446",
   "measurementId": ""
 }

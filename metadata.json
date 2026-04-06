@@ -1,5 +1,5 @@
 {
-  "name": "Kolkata's Kitchen",
-  "description": "Authentic Kolkata Biryani and Chinese in New Delhi. Premium luxury food experience at affordable prices.",
-  "requestFramePermissions": ["geolocation"]
+  "name": "GitHub Repo Workspace",
+  "description": "A collaborative workspace for managing and developing GitHub repositories with integrated AI and real-time data persistence.",
+  "requestFramePermissions": []
 }
