@@ -2,7 +2,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store';
 import { User, ShoppingBag, MapPin, LogOut, ChevronRight, Clock, Star, Edit2, X, CheckCircle2, Smartphone, CreditCard, HelpCircle, Settings, Bike } from 'lucide-react';
 import { auth, signOut, collection, query, where, onSnapshot, db, OperationType, handleFirestoreError, updateDoc, doc, collectionGroup } from '../firebase';
-import { setUser } from '../store/authSlice';
+import { setUser } from '../store/auth-slice';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
